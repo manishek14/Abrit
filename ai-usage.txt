@@ -1,0 +1,44 @@
+AI Usage Disclosure — AbrIT Ticketing System
+=============================================
+
+As explicitly allowed and encouraged by the AbrIT trial assignment, this project
+was developed with AI assistance. This file documents the tools used, for what,
+and includes sample prompts.
+
+Tools & models
+--------------
+- GLM (Z.ai) agent — main implementation partner for the whole repository:
+  architecture review of the provided execution plan, backend/frontend code
+  generation, test authoring, documentation and Git workflow. Every generated
+  file was executed and verified by the agent against a real PostgreSQL instance
+  before each commit (boot smoke tests, migrations, Jest suites).
+- Model(s) used for implementation: GLM (Z.ai sandbox agent).
+
+What the human owner did
+------------------------
+- Reviewed and approved the execution-plan PDF, defined product decisions
+  (removed Redis/BullMQ for v1, added a separate chat_id column, final bot
+  command set: /start /new /status /close /help, WebSocket addition, bilingual
+  README), verified each pushed phase, and will supply the Telegram/OpenRouter
+  credentials (intentionally left empty for now).
+
+Sample prompts (translated from Persian)
+----------------------------------------
+- "Review the execution-plan PDF against the original company task PDF, adopt
+  my corrections, then implement Phase 0: repository structure, NestJS with
+  fail-fast env validation, TypeORM connection, /api/health, docker compose."
+- "Implement Phase 1 exactly per the plan: six entities, an initial migration
+  with ticket_number sequence (start 10001), the partial unique index that
+  enforces at most one active ticket per user, and idempotent seeds."
+- "Write the ContextBuilder so that only messages of the same ticket_id ever
+  enter the AI payload, plus a test proving ticket A's text never appears in
+  ticket B's payload."
+- "Do NOT call the real Telegram/OpenRouter APIs yet — leave their config slots
+  empty and keep the modules disabled until I provide the credentials."
+
+Verification performed by the agent
+-----------------------------------
+- Application boot smoke test (`GET /api/health` against a real Postgres).
+- Migration run from a clean database (drop → recreate → migrate → seed).
+- Unit/Integration/E2E suites executed before the delivery commit
+  (see docs/test-report.md for the actual command output).

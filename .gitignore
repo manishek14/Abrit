@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+coverage/
+
+# environment & secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# logs & misc
+*.log
+.DS_Store
+.idea/
+.vscode/
+
+# local scratch data
+.pgdata/
