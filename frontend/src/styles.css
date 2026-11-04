@@ -1,0 +1,42 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #f5f5f5;
+}
+
+/* Bidi-safe text: keeps Persian (RTL) and Latin (LTR) readable in the same
+   element. Combined with dir="auto" on message content nodes. */
+.bidi {
+  unicode-bidi: plaintext;
+}
+
+.sider-brand {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #f0f5ff 0%, #f5f5f5 100%);
+  padding: 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+}
