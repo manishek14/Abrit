@@ -1,10 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createSocket, getCurrentTicketId } from '../socket';
 import { useAuth } from './AuthContext';
 import { queryKeys } from '../api/keys';
 import { mergeMessages } from '../utils/messages';
-import type { Message, Ticket, TicketDetail, TicketStatus } from '../types';
+import type { ConversationData, Message, Ticket, TicketDetail, TicketStatus } from '../types';
 
 interface SocketContextValue {
   /** True while the realtime connection is up; polling kicks in when it is not. */
@@ -17,6 +17,10 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
   const { token } = useAuth();
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
+  // Whether this socket instance had at least one successful connection — used
+  // to distinguish the FIRST connect (nothing to resync) from a RE-connect
+  // (events were missed while offline → caches must be revalidated).
+  const hadConnectionRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -25,6 +29,7 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
     }
 
     const socket = createSocket(token);
+    hadConnectionRef.current = false;
 
     const invalidateTickets = (): void => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.ticketsRoot });
@@ -32,12 +37,17 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
     const invalidateDashboard = (): void => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     };
+    const invalidateUsers = (): void => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.usersRoot });
+    };
 
     const applyMessage = (message: Message): void => {
       // Live-update the conversation only when it is the one on screen.
       if (getCurrentTicketId() === message.ticket_id) {
-        queryClient.setQueryData<Message[]>(queryKeys.messages(message.ticket_id), (previous) =>
-          previous ? mergeMessages(previous, [message]) : [message],
+        queryClient.setQueryData<ConversationData>(queryKeys.messages(message.ticket_id), (previous) =>
+          previous
+            ? { hasMoreOlder: previous.hasMoreOlder, messages: mergeMessages(previous.messages, [message]) }
+            : { messages: [message], hasMoreOlder: false },
         );
       }
       // last_message_at / counts changed for the list + dashboard.
@@ -45,7 +55,16 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
       invalidateDashboard();
     };
 
-    socket.on('connect', () => setConnected(true));
+    socket.on('connect', () => {
+      setConnected(true);
+      if (hadConnectionRef.current) {
+        // RE-connect (review fix): every event emitted while the socket was
+        // down is gone for good — refetch ALL queries so the panel shows the
+        // missed tickets/messages/users instead of stale caches.
+        void queryClient.invalidateQueries();
+      }
+      hadConnectionRef.current = true;
+    });
     socket.on('disconnect', () => setConnected(false));
     socket.on('connect_error', (err: Error) => {
       setConnected(false);
@@ -72,6 +91,13 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
 
     socket.on('message:updated', (payload: { message: Message }) => {
       applyMessage(payload.message);
+    });
+
+    // A user wrote to the bot for the first time → the users list gains a row
+    // (review fix: the list used to stay stale until a manual refresh).
+    socket.on('user:new', (_payload: { user: unknown }) => {
+      invalidateUsers();
+      invalidateDashboard();
     });
 
     return () => {

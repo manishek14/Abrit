@@ -11,8 +11,9 @@ import { mergeMessages } from '../utils/messages';
 import type {
   AssistantModelsResponse,
   AssistantSettings,
+  ConversationData,
   DashboardStats,
-  Message,
+  MessagesPage,
   Paginated,
   TelegramUser,
   TelegramUserWithTickets,
@@ -87,29 +88,70 @@ export function useTicket(ticketId: string) {
   });
 }
 
+/** Page size for backward ("load older") pagination. */
+const OLDER_PAGE_SIZE = 50;
+
 /**
- * Conversation query. The full list lives in the query cache; incremental
- * refreshes use `after=<last seen id>` so polls stay cheap. Realtime events
- * (SocketProvider) and polls merge into the same cache, deduped by id.
+ * Conversation query. The merged list + hasMoreOlder live in the query cache;
+ * incremental refreshes use `after=<last seen id>` so polls stay cheap.
+ * Realtime events (SocketProvider) and polls merge into the same cache,
+ * deduped by id. Older history is paged in separately via useLoadOlderMessages.
  */
 export function useConversation(ticketId: string) {
   const { connected } = useSocket();
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.messages(ticketId),
-    queryFn: async (): Promise<Message[]> => {
-      const cached = queryClient.getQueryData<Message[]>(queryKeys.messages(ticketId)) ?? [];
-      const lastSeenId = cached.length > 0 ? cached[cached.length - 1].id : null;
-      const response = await api.get<{ data: Message[] }>(`/tickets/${ticketId}/messages`, {
+    queryFn: async (): Promise<ConversationData> => {
+      const cached =
+        queryClient.getQueryData<ConversationData>(queryKeys.messages(ticketId)) ??
+        { messages: [], hasMoreOlder: false };
+      const lastSeenId =
+        cached.messages.length > 0 ? cached.messages[cached.messages.length - 1].id : null;
+      const response = await api.get<MessagesPage>(`/tickets/${ticketId}/messages`, {
         params: lastSeenId ? { after: lastSeenId } : undefined,
       });
       const incoming = response.data.data;
-      if (cached.length === 0) return incoming;
-      if (incoming.length === 0) return cached; // cheap no-op poll
-      return mergeMessages(cached, incoming);
+      // `after` responses say nothing about older pages — keep the known flag;
+      // full loads (no cursor) carry the server's authoritative has_more.
+      const hasMoreOlder = lastSeenId
+        ? cached.hasMoreOlder
+        : (response.data.meta?.has_more ?? false);
+      if (cached.messages.length === 0) return { messages: incoming, hasMoreOlder };
+      if (incoming.length === 0) return { messages: cached.messages, hasMoreOlder }; // cheap no-op poll
+      return { messages: mergeMessages(cached.messages, incoming), hasMoreOlder };
     },
     enabled: ticketId !== '',
     refetchInterval: connected ? false : POLL_INTERVAL_MS.conversation,
+  });
+}
+
+/**
+ * Pages in older messages (review fix): fetches the `limit` messages before
+ * the oldest cached one and PREPENDS them; hasMoreOlder advances so the
+ * "Load older messages" button disappears exactly when history is exhausted.
+ */
+export function useLoadOlderMessages(ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<boolean> => {
+      const current = queryClient.getQueryData<ConversationData>(queryKeys.messages(ticketId));
+      const oldestId = current?.messages[0]?.id;
+      if (!oldestId) return false;
+      const response = await api.get<MessagesPage>(`/tickets/${ticketId}/messages`, {
+        params: { before: oldestId, limit: OLDER_PAGE_SIZE },
+      });
+      const hasMoreOlder = response.data.meta?.has_more ?? false;
+      queryClient.setQueryData<ConversationData>(queryKeys.messages(ticketId), (previous) =>
+        previous
+          ? {
+              hasMoreOlder,
+              messages: mergeMessages(response.data.data, previous.messages),
+            }
+          : { messages: response.data.data, hasMoreOlder },
+      );
+      return hasMoreOlder;
+    },
   });
 }
 

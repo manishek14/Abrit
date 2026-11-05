@@ -19,7 +19,7 @@ import {
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AxiosError } from 'axios';
 import dayjs from 'dayjs';
-import { useChangeTicketStatus, useConversation, useTicket } from '../api/hooks';
+import { useChangeTicketStatus, useConversation, useLoadOlderMessages, useTicket } from '../api/hooks';
 import { queryKeys } from '../api/keys';
 import { getApiErrorMessage } from '../api/client';
 import { setCurrentTicketId } from '../socket';
@@ -37,6 +37,11 @@ export function TicketDetailPage(): JSX.Element {
   const ticketQuery = useTicket(ticketId);
   const conversationQuery = useConversation(ticketId);
   const changeStatusMutation = useChangeTicketStatus(ticketId);
+  const loadOlderMutation = useLoadOlderMessages(ticketId);
+
+  const conversation = conversationQuery.data;
+  const messages = conversation?.messages ?? [];
+  const hasMoreOlder = conversation?.hasMoreOlder ?? false;
 
   const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
 
@@ -211,7 +216,18 @@ export function TicketDetailPage(): JSX.Element {
                 style={{ marginBottom: 16 }}
               />
             )}
-            <Conversation messages={conversationQuery.data ?? []} loading={conversationQuery.isLoading} />
+            {hasMoreOlder && (
+              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <Button
+                  size="small"
+                  loading={loadOlderMutation.isPending}
+                  onClick={() => loadOlderMutation.mutate()}
+                >
+                  Load older messages
+                </Button>
+              </div>
+            )}
+            <Conversation messages={messages} loading={conversationQuery.isLoading} />
           </Card>
         </>
       )}

@@ -110,6 +110,21 @@ export interface Paginated<T> {
   meta: PaginatedMeta;
 }
 
+/** GET /tickets/:id/messages response envelope. */
+export interface MessagesPage {
+  data: Message[];
+  meta: { has_more: boolean };
+}
+
+/**
+ * The conversation query cache shape: the merged chronological message list
+ * plus `hasMoreOlder` — whether older history can be paged in with ?before=.
+ */
+export interface ConversationData {
+  messages: Message[];
+  hasMoreOlder: boolean;
+}
+
 export interface TicketsFilters {
   status: TicketStatus | '';
   q: string;
