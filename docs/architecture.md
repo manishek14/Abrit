@@ -20,7 +20,10 @@ No message is ever lost and nothing is ever processed twice. Everything else
 ```
 
 After step 3 the user's message cannot be lost; after step 8 the reply cannot.
-Whatever happens in between is retryable and idempotent.
+Whatever happens in between is retryable, idempotent — and **resumable**: each
+completed milestone is recorded on `bot_updates.stage`
+(`CLAIMED → USER_SAVED → REPLY_SAVED`), so a re-run after a crash CONTINUES
+the half-finished work instead of dropping it.
 
 ## Components
 
@@ -29,7 +32,7 @@ Whatever happens in between is retryable and idempotent.
 | `modules/telegram` | Telegraf transport (polling/webhook), gateway interface, webhook controller (constant-time secret), outbox dispatcher, sweeper |
 | `modules/conversation` | Orchestrator (claim → upsert → command/ticket flow → reply) and bot commands; per-chat serial promise queue |
 | `modules/ai` | `AiProvider` interface, `OpenRouterProvider` (fetch, no SDK), `ContextBuilder` (ticket isolation), retry/backoff policy, concurrency semaphore |
-| `modules/inbox` | `bot_updates` ingest/claim/requeue |
+| `modules/inbox` | `bot_updates` ingest/claim/requeue + stage tracking + retention purge |
 | `modules/{users,tickets,messages,settings}` | Domain services (business rules + outbox writes) |
 | `modules/auth`, global guard | JWT everywhere except `@Public()` routes; login rate-limited |
 | `modules/ws` | Socket.IO gateway (same JWT, room `admins`) bridged to domain events |
@@ -41,9 +44,14 @@ Whatever happens in between is retryable and idempotent.
 |---|---|
 | Before inbox insert | Telegram re-delivers (webhook) or offset not acked (polling) — nothing lost |
 | Inbox stored, not processed | Sweeper re-drives RECEIVED rows |
-| Mid-processing (row PROCESSING) | Sweeper requeues after 2 min, ≤ 3 attempts, then FAILED |
-| After USER message stored, before reply | Re-run skips the duplicate USER row (unique `telegram_update_id`) and the unique partial index blocks a second ASSISTANT reply for the same `in_reply_to_id` |
-| After outbox insert, before send | Sweeper delivers PENDING rows (5 attempts, `retry_after` honored) |
+| Mid-processing (row PROCESSING) | Sweeper requeues after 2 min, ≤ 3 attempts, then FAILED (last_error preserved) |
+| After USER message stored, before reply | **RESUME**: `addUserMessage` returns the already-stored row, the AI reply step then runs — the user is never left unanswered. An already-stored reply short-circuits the AI call |
+| After outbox insert, before send | Sweeper delivers PENDING rows (5 attempts, `retry_after` honored); a crashed sender's lease (`claimed_at`) expires after 60 s and the row is reclaimed |
+
+Events (websocket broadcast + immediate dispatch) are fired **after the
+transaction commits**, so the panel and the dispatcher never observe a change
+that could still roll back. The durable outbox insert itself stays INSIDE the
+transaction (transactional-outbox pattern).
 
 ## Concurrency controls
 
@@ -51,9 +59,23 @@ Whatever happens in between is retryable and idempotent.
   user's updates so the second message's AI context contains the first reply.
 - **AI concurrency cap** — a counting semaphore (default 3) protects the
   OpenRouter rate limit.
-- **One active ticket per user** — PostgreSQL partial unique index, race-free.
-- **Atomic claim** — `UPDATE … WHERE status='RECEIVED' RETURNING` so two workers
-  can never process the same update.
+- **One active ticket per user** — PostgreSQL partial unique index, race-free;
+  the service maps any CLOSED → active transition violation to a controlled
+  409 (never a leaking 500).
+- **Atomic claim (inbox)** — `UPDATE … WHERE status='RECEIVED' RETURNING` so two
+  workers can never process the same update.
+- **Atomic claim (outbox)** — every send starts with
+  `claimForDelivery`: `UPDATE messages SET claimed_at = now() WHERE …` with a
+  60 s lease; the immediate dispatcher and the sweeper can never deliver the
+  same message twice, even concurrently.
+
+## Data retention
+
+`bot_updates` keeps the RAW Telegram payloads (needed only for crash-recovery
+replays). `InboxRetentionService` purges rows older than
+`BOT_UPDATES_RETENTION_DAYS` (default 30, `0` = keep forever) daily at 04:00 and
+once at boot. Conversation messages (the actual ticket history) are kept
+indefinitely and are NOT affected by the purge.
 
 ## Scale-up path (documented, not built — deliberate simplicity)
 
@@ -69,8 +91,9 @@ Whatever happens in between is retryable and idempotent.
 ## Known limitations
 
 - Per-chat queue is in-memory → single instance (see scale-up path).
-- Outbox delivery is at-least-once: a crash between a successful Telegram send
-  and the SENT update can duplicate one message.
+- Outbox delivery is at-least-once ONLY across a hard crash between a successful
+  Telegram send and the SENT update (concurrent duplicate sends are impossible —
+  atomic claim); that rare crash window can duplicate one message.
 - Context windowing is message-count + character-budget, not exact token count.
 - JWT in localStorage (Bearer) — httpOnly cookies are the hardened upgrade.
 - A message right after `/close` opens a NEW ticket (simple, PDF-compliant

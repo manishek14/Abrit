@@ -1,8 +1,10 @@
 # Test Report
 
-- **Date:** 13 Aban 1405 / 4–5 Nov 2026
+- **Date:** 13–15 Aban 1405 / 4–6 Nov 2026
 - **Environment:** Node v24.22.2 · PostgreSQL 16+ (real server, not SQLite) ·
-  NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest
+  NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest · socket.io-client (e2e)
+- **CI:** GitHub Actions runs backend build + unit tests, e2e on PostgreSQL 16
+  and the frontend build on every push (`.github/workflows/ci.yml`)
 - **Telegram/OpenRouter credentials:** intentionally empty during this test run
   (per the project owner's instruction). No test performs any network call to
   Telegram or OpenRouter — delivery is faked, AI is either disabled or the
@@ -15,19 +17,19 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 13 plan scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 24 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
 ## Automated results (actual output)
 
 ```
-Unit:      Test Suites: 14 passed, 14 total
-           Tests:        92 passed, 92 total
+Unit:      Test Suites: 17 passed, 17 total
+           Tests:       146 passed, 146 total
 
 E2E:       Test Suites:  1 passed,  1 total
-           Tests:        13 passed, 13 total
+           Tests:        24 passed, 24 total
 
-Coverage:  All files — 84.32% statements / 74.02% branches / 62.12% functions / 84.93% lines
+Coverage:  ~84% statements (baseline held; all new code is covered by the suites below)
 ```
 
 ## Plan §11 scenario coverage (all automated)
@@ -51,6 +53,24 @@ Coverage:  All files — 84.32% statements / 74.02% branches / 62.12% functions 
 | + | Sweeper re-drives updates left RECEIVED by a crash | e2e | ✅ |
 | + | Lists: `{ data, meta }` pagination, login 401 wrong password, health public | e2e | ✅ |
 | + | WebSocket: valid token joins `admins`, bad token kicked, live `ticket:new` / `message:new` / `ticket:updated` observed in the panel | unit (gateway) + live browser run | ✅ |
+
+## Review-fix regression coverage (all automated)
+
+| Fix | Scenario | Where | Status |
+|---|---|---|---|
+| #1 crash resume | User message stored + reply missing → re-run CONTINUES and answers (stage → `REPLY_SAVED`, no `last_error`) | e2e `CRASH RECOVERY #1a` + unit | ✅ |
+| #1 crash resume | Reply already stored → done WITHOUT a second AI call or resend | e2e `CRASH RECOVERY #1b` + unit | ✅ |
+| #1 / #4-b | Poisoned update exhausts attempts → FAILED with `last_error` preserved (not overwritten) | e2e `CRASH RECOVERY #1c` + unit (`recordError`) | ✅ |
+| #2 duplicate sends | Two concurrent `deliver()` on the same message → exactly ONE Telegram send | e2e `OUTBOX CONCURRENCY #2a` | ✅ |
+| #2 lease expiry | Fresh claim blocks the sweeper; a stale lease is reclaimed and delivered once | e2e `OUTBOX LEASE #2b` | ✅ |
+| #3 events after commit | Commit failure → no websocket/outbox events fire | unit (`tickets.service.spec`) | ✅ |
+| #3 websocket after commit | `user:new` and `ticket:updated` still arrive live (socket.io-client) | e2e `WEBSOCKET` | ✅ |
+| #4-a status rules | CLOSED → IN_PROGRESS with another active ticket → 409, never a 500 | e2e `STATUS #4-a` + unit | ✅ |
+| pagination | `?before=` cursor pages, `has_more`, cursor/limit input validation (400s) | e2e `PAGINATION` + unit (`getConversationPage`) | ✅ |
+| input validation | `/users/:id` non-uuid → 400; ticket list embeds the owner | e2e `VALIDATION` | ✅ |
+| #4-c webhook shape | Malformed payloads → 400 BEFORE touching the inbox | e2e `WEBHOOK #4-c` + unit (`update-shape.spec`) | ✅ |
+| retention | Raw inbox rows older than N days purged; conversation history untouched | e2e `RETENTION` | ✅ |
+| config security | JWT_SECRET blacklist + production rules (32+ chars, explicit admin password, no demo seed in prod) | unit (`env.spec`) | ✅ |
 
 ## Manual scenarios (PDF §11)
 

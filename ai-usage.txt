@@ -71,3 +71,40 @@ Model used at runtime
 - None yet — OPENROUTER_API_KEY is intentionally empty; the assistant replies
   with a fixed fallback message. The runtime model will be recorded here when
   the owner supplies the key (default seeded model: `openrouter/auto`).
+
+Session 4 — code-review fix round (15 Aban 1405 / 6 Nov 2026)
+------------------------------------------------------------
+Scope: all findings from the owner's independent code review were fixed with
+AI assistance (design + implementation + tests), in the reviewer's priority
+order:
+1. Resumable crash recovery: bot_updates.stage milestones
+   (CLAIMED → USER_SAVED → REPLY_SAVED); addUserMessage now RETURNS the
+   previously stored row for a re-run update instead of marking it done, so
+   a stored user message always gets its AI reply (findAssistantReply also
+   prevents a second AI call when the reply already exists).
+2. Atomic outbox claim (messages.claimed_at, 60 s lease) — the immediate
+   dispatcher and the sweeper can never send the same message twice, even
+   without a crash; a crashed sender's lease simply expires.
+3. Events (websocket + dispatch) now fire only AFTER the transaction commits
+   (transactional-outbox kept for durability).
+4. Any CLOSED → active transition (OPEN or IN_PROGRESS) with another active
+   ticket is a controlled 409; the unique-violation race is also mapped to 409.
+5. Panel: full cache resync after a websocket reconnect; users list refreshes
+   on user:new (new domain event user.created, xmax=0 trick); ticket list
+   embeds the owner; "Load older messages" backward pagination
+   (?before=&limit=, meta.has_more).
+6. Input validation: /users/:id UUID, numeric bigint cursors, limit range,
+   webhook structural validation before storage (update-shape.ts).
+7. Production hardening: JWT_SECRET blacklist (known/example values rejected
+   everywhere, ≥ 32 chars in production), ADMIN_PASSWORD must be explicit in
+   production, SEED_DEMO_DATA defaults false and is refused true in production.
+8. Retention: bot_updates raw payloads purged after BOT_UPDATES_RETENTION_DAYS
+   (default 30, 0 = off); conversation history is never purged.
+9. CI: GitHub Actions — backend build + unit tests, e2e on PostgreSQL 16,
+   frontend build (.github/workflows/ci.yml).
+
+Verification: 146 unit tests (17 suites) + 24 e2e scenarios on real
+PostgreSQL all green (crash-resume, concurrent-delivery, lease-expiry,
+events-after-commit via socket.io-client, pagination, validation, retention
+are new regression scenarios); backend `nest build` and frontend
+`tsc -b && vite build` clean; secret scan re-run clean.
