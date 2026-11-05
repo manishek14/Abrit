@@ -44,6 +44,7 @@ admins ── (updated_by) ──► assistant_settings
 | telegram_update_id | bigint | `UNIQUE` — 2nd dedup wall (1st: inbox PK) |
 | in_reply_to_id | bigint FK → messages | `UNIQUE WHERE role='ASSISTANT'` — at most one AI reply per user message, even after crash+retry |
 | delivery_status | enum | PENDING / SENT / FAILED — only outbound roles |
+| claimed_at | timestamptz | delivery lease — atomic claim prevents duplicate sends; a crashed sender's lease expires after 60 s |
 | delivery_attempts / error | int / text | sweeper backoff + visible failure reason |
 | telegram_message_id | bigint | echo from Telegram after a successful send |
 | admin_id | uuid FK → admins | future admin replies |
@@ -53,7 +54,11 @@ admins ── (updated_by) ──► assistant_settings
 ### bot_updates — the inbox
 `update_id` bigint **PK** (dedup = one INSERT), payload jsonb (raw update),
 status RECEIVED/PROCESSING/DONE/FAILED, attempts, last_error, received_at,
-locked_at, processed_at.
+locked_at, processed_at, plus `stage` (varchar) — the last completed
+processing milestone (`CLAIMED` / `USER_SAVED` / `REPLY_SAVED`) used for
+resumable crash recovery and operator visibility. Rows are purged after
+`BOT_UPDATES_RETENTION_DAYS` (default 30) by the retention service; the raw
+payload is only needed for crash replays, never for history.
 
 ### assistant_settings — singleton
 `id smallint CHECK (id = 1)`, system_prompt, model, is_active,
