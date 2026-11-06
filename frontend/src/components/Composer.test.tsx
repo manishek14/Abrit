@@ -5,7 +5,7 @@ import { App as AntdApp } from 'antd';
 import { Composer } from './Composer';
 
 function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
-  const onSend = vi.fn(async () => {});
+  const onSend = vi.fn(async (_content: string, _clientMessageId: string) => {});
   const utils = render(
     <AntdApp>
       <Composer onSend={onSend} {...props} />
@@ -17,11 +17,13 @@ function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
 }
 
 describe('Composer (operator replies — review fix #4)', () => {
-  it('sends the trimmed draft on click and clears the input', async () => {
+  it('sends the trimmed draft WITH an idempotency key and clears the input', async () => {
     const { onSend, textarea, sendButton } = renderComposer();
     await userEvent.type(textarea, '  سلام، رسیدیم  ');
     await userEvent.click(sendButton);
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('سلام، رسیدیم'));
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('سلام، رسیدیم', expect.any(String)),
+    );
     await waitFor(() => expect(textarea).toHaveValue(''));
   });
 
@@ -33,7 +35,47 @@ describe('Composer (operator replies — review fix #4)', () => {
     expect(onSend).not.toHaveBeenCalled();
     await userEvent.type(textarea, '{Enter}');
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    expect(onSend.mock.calls[0]).toEqual(['first line\nsecond line']);
+    expect(onSend.mock.calls[0][0]).toBe('first line\nsecond line');
+  });
+
+  it('IDEMPOTENCY (review fix): a failed send keeps the draft AND reuses the SAME key on retry', async () => {
+    const onSend = vi
+      .fn<(content: string, clientMessageId: string) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('timeout')) // first attempt "lost"
+      .mockResolvedValueOnce(undefined); // retry succeeds
+    render(
+      <AntdApp>
+        <Composer onSend={onSend} />
+      </AntdApp>,
+    );
+    const textarea = screen.getByRole('textbox', { name: /reply to the user/i });
+    const sendButton = screen.getByRole('button', { name: /send/i });
+
+    await userEvent.type(textarea, 'پاسخ یکتا');
+    await userEvent.click(sendButton);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+
+    // draft kept for a one-click retry…
+    await waitFor(() => expect(textarea).toHaveValue('پاسخ یکتا'));
+    await userEvent.click(sendButton);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+
+    // THE key behavior: the retry carried the SAME idempotency key, so the
+    // server replays the original message instead of storing a duplicate.
+    expect(onSend.mock.calls[0][1]).toBe(onSend.mock.calls[1][1]);
+    expect(onSend.mock.calls[0][1]).toMatch(/^[A-Za-z0-9_-]{8,64}$/);
+    await waitFor(() => expect(textarea).toHaveValue('')); // cleared on success
+  });
+
+  it('IDEMPOTENCY: a NEW send after a successful one gets a FRESH key', async () => {
+    const { onSend, textarea, sendButton } = renderComposer();
+    await userEvent.type(textarea, 'first');
+    await userEvent.click(sendButton);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    await userEvent.type(textarea, 'second');
+    await userEvent.click(sendButton);
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+    expect(onSend.mock.calls[0][1]).not.toBe(onSend.mock.calls[1][1]);
   });
 
   it('keeps the draft when sending fails so the operator can retry', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { Alert, Button, Skeleton, Tag, Tooltip } from 'antd';
 import { CommentOutlined } from '@ant-design/icons';
 import type { Message, MessageMeta } from '../types';
@@ -19,11 +19,27 @@ interface ConversationProps {
 
 const NEAR_BOTTOM_PX = 80;
 
+/** Mirrors the backend's MAX_DELIVERY_ATTEMPTS — beyond this, FAILED is terminal. */
+const MAX_DELIVERY_ATTEMPTS = 5;
+
 /**
- * Chat transcript. USER/ADMIN right-aligned, ASSISTANT left, SYSTEM centered.
+ * Chat transcript (support-panel convention, review fix):
+ *   ADMIN (the operator) on the RIGHT — clearly the agent's own voice;
+ *   USER and ASSISTANT on the LEFT — the customer and the bot the agent
+ *   answers on behalf of; SYSTEM centered as a neutral event note.
  * Content is bidi-safe (`dir="auto"` + `unicode-bidi: plaintext`) so Persian
- * renders correctly next to Latin text. Auto-scrolls to the newest message
- * only while the user is near the bottom.
+ * renders correctly next to Latin text.
+ *
+ * Scroll behavior (review fix):
+ *   - initial load / ticket switch: jump to the NEWEST message;
+ *   - "load older" prepends history: the viewport is anchored to the same
+ *     CONTENT position (scrollHeight delta compensation) so the operator's
+ *     reading position never jumps — the professional chat-client behavior;
+ *   - new realtime messages auto-scroll ONLY while the operator is at the
+ *     bottom (stick-to-bottom).
+ *
+ * The parent mounts this with key={ticketId}: switching tickets remounts the
+ * transcript, so scroll state and refs can never leak across conversations.
  *
  * Loading / empty / error states are fully separated (review fix): a skeleton
  * while the first page loads, a designed empty state when the conversation
@@ -39,19 +55,38 @@ export function Conversation({
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const didInitialScrollRef = useRef(false);
+  const prevScrollHeightRef = useRef(0);
+  const prevFirstIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container || messages.length === 0) return;
+    const firstId = messages[0].id;
+
     if (!didInitialScrollRef.current) {
       container.scrollTop = container.scrollHeight;
       didInitialScrollRef.current = true;
       stickToBottomRef.current = true;
+      prevFirstIdRef.current = firstId;
+      prevScrollHeightRef.current = container.scrollHeight;
       return;
     }
-    if (stickToBottomRef.current) {
+
+    const didPrepend = prevFirstIdRef.current !== null && firstId !== prevFirstIdRef.current;
+    if (didPrepend) {
+      // "Load older" added content ABOVE the viewport. Keep the exact visual
+      // position (review fix): shift scrollTop by the height delta BEFORE
+      // paint, so the operator's reading position never jumps and the newly
+      // loaded history simply becomes available above.
+      const delta = container.scrollHeight - prevScrollHeightRef.current;
+      if (delta > 0) container.scrollTop += delta;
+      // stickToBottom is deliberately untouched: the operator chose to read
+      // history; auto-follow resumes once they scroll back near the bottom.
+    } else if (stickToBottomRef.current) {
       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }
+    prevFirstIdRef.current = firstId;
+    prevScrollHeightRef.current = container.scrollHeight;
   }, [messages]);
 
   const handleScroll = (): void => {
@@ -95,7 +130,7 @@ export function Conversation({
         <EmptyState
           icon={<CommentOutlined />}
           title="Conversation hasn't started"
-          description="Messages from the user will appear here as soon as they write to the bot. Replies you send are delivered to their Telegram chat."
+          description="Messages from the user will appear here as soon as they write to the bot."
         />
       </div>
     );
@@ -126,16 +161,19 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
     );
   }
 
-  const isOwnSide = message.role === 'USER' || message.role === 'ADMIN';
+  // Support-panel sides (review fix): the operator's OWN voice (ADMIN) sits on
+  // the right; the customer (USER) and the bot (ASSISTANT) sit on the left.
+  const isOperatorSide = message.role === 'ADMIN';
 
   return (
-    <div className={`msg-row ${isOwnSide ? 'msg-row--right' : 'msg-row--left'}`}>
+    <div className={`msg-row ${isOperatorSide ? 'msg-row--right' : 'msg-row--left'}`}>
       <div className={`msg-bubble msg-bubble--${message.role.toLowerCase()}`}>
         <div className="msg-content bidi" dir="auto">
           {message.content}
         </div>
         <div className="msg-meta">
           {message.role === 'ADMIN' && <Tag className="msg-tag">Support</Tag>}
+          {message.role === 'USER' && <Tag className="msg-tag msg-tag--muted">Customer</Tag>}
           {message.role === 'ASSISTANT' && message.meta?.model != null && (
             <Tooltip title={assistantMetaTooltip(message.meta)}>
               <Tag color="geekblue" className="msg-tag">
@@ -143,19 +181,54 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
               </Tag>
             </Tooltip>
           )}
-          {message.delivery_status === 'PENDING' && <Tag className="msg-tag">Sending…</Tag>}
-          {message.delivery_status === 'FAILED' && (
-            <Tooltip title={message.error ?? 'Delivery to Telegram failed.'}>
-              <Tag color="error" className="msg-tag">
-                Delivery failed
-              </Tag>
-            </Tooltip>
-          )}
+          <DeliveryBadge message={message} />
           <span className="msg-time">{formatTimeShort(message.created_at)}</span>
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Outbound delivery status, visible at a glance (review fix):
+ *   Sending… → the durable outbox owns the send
+ *   Sent     → delivered to Telegram
+ *   Retrying → failed, the sweeper retries automatically (attempt info in tooltip)
+ *   Failed   → terminal (attempts exhausted / user blocked); error in tooltip
+ */
+function DeliveryBadge({ message }: { message: Message }): JSX.Element | null {
+  if (message.delivery_status == null || message.role === 'USER') return null;
+
+  if (message.delivery_status === 'PENDING') {
+    return <Tag className="msg-tag">Sending…</Tag>;
+  }
+  if (message.delivery_status === 'SENT') {
+    return <Tag className="msg-tag msg-tag--sent">Sent</Tag>;
+  }
+  if (message.delivery_status === 'FAILED') {
+    const terminal = message.delivery_attempts >= MAX_DELIVERY_ATTEMPTS;
+    if (terminal) {
+      return (
+        <Tooltip
+          title={message.error ? `Not delivered: ${message.error}` : 'Delivery to Telegram failed permanently.'}
+        >
+          <Tag color="error" className="msg-tag">
+            Failed
+          </Tag>
+        </Tooltip>
+      );
+    }
+    return (
+      <Tooltip
+        title={`${message.error ? `${message.error} — ` : ''}automatically retrying (attempt ${message.delivery_attempts + 1} of ${MAX_DELIVERY_ATTEMPTS}).`}
+      >
+        <Tag color="warning" className="msg-tag">
+          Retrying
+        </Tag>
+      </Tooltip>
+    );
+  }
+  return null;
 }
 
 function assistantMetaTooltip(meta: MessageMeta): string {

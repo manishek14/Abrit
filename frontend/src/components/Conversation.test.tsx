@@ -68,7 +68,7 @@ describe('Conversation states (review fix: loading / empty / error are separated
     expect(screen.queryByText('Failed to load conversation')).not.toBeInTheDocument();
   });
 
-  it('renders the transcript: USER/ADMIN on the right, ASSISTANT on the left, SYSTEM centered', () => {
+  it('renders the transcript: ADMIN (operator) on the right, USER and ASSISTANT on the left, SYSTEM centered', () => {
     render(
       <Conversation
         loading={false}
@@ -80,13 +80,67 @@ describe('Conversation states (review fix: loading / empty / error are separated
         ]}
       />,
     );
-    expect(screen.getByText('پیام کاربر').closest('.msg-row')).toHaveClass('msg-row--right');
+    // support-panel sides (review fix): the operator's own voice is ADMIN/right;
+    // the customer (USER) and the bot (ASSISTANT) sit on the left.
+    expect(screen.getByText('پیام کاربر').closest('.msg-row')).toHaveClass('msg-row--left');
     expect(screen.getByText('تیکت ایجاد شد').closest('.msg-row')).toHaveClass('msg-row--system');
     expect(screen.getByText('پاسخ دستیار').closest('.msg-row')).toHaveClass('msg-row--left');
     expect(screen.getByText('پاسخ کارشناس').closest('.msg-row')).toHaveClass('msg-row--right');
-    // admin replies are labelled as Support and carry the delivery badge
+    // the two voices are explicitly labelled, not only positioned
     expect(screen.getByText('Support')).toBeInTheDocument();
+    expect(screen.getByText('Customer')).toBeInTheDocument();
     expect(screen.getByText('Sending…')).toBeInTheDocument();
+  });
+
+  it('shows the full delivery lifecycle: Sending → Sent, and Retrying vs Failed (review fix)', () => {
+    render(
+      <Conversation
+        loading={false}
+        messages={[
+          msg('1', { role: 'ADMIN', content: 'در حال ارسال', delivery_status: 'PENDING' }),
+          msg('2', { role: 'ADMIN', content: 'ارسال شد', delivery_status: 'SENT' }),
+          msg('3', {
+            role: 'ADMIN',
+            content: 'تلاش مجدد',
+            delivery_status: 'FAILED',
+            delivery_attempts: 1,
+            error: 'network down',
+          }),
+          msg('4', {
+            role: 'ADMIN',
+            content: 'ناموفق نهایی',
+            delivery_status: 'FAILED',
+            delivery_attempts: 5,
+            error: 'user blocked the bot',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('Sending…')).toBeInTheDocument();
+    expect(screen.getByText('Sent')).toBeInTheDocument();
+    expect(screen.getByText('Retrying')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
+  it('labels a FAILED reply as Retrying while attempts remain, with the reason in the tooltip', async () => {
+    render(
+      <Conversation
+        loading={false}
+        messages={[
+          msg('1', {
+            role: 'ADMIN',
+            content: 'تلاش مجدد',
+            delivery_status: 'FAILED',
+            delivery_attempts: 2,
+            error: 'network down',
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('Retrying')).toBeInTheDocument();
+    // hovering the badge reveals the failure reason + the auto-retry attempt
+    await userEvent.hover(screen.getByText('Retrying'));
+    expect(await screen.findByText(/network down — automatically retrying \(attempt 3 of 5\)\./i)).toBeInTheDocument();
   });
 });
 

@@ -12,7 +12,8 @@
 #   3. Admin panel — static frontend build served by `vite preview` on :5173
 #
 # Demo login: admin@abrit.local / Admin1234!   (development default — see .env)
-# Requirements: Node 20+, npm, and (only if no local PostgreSQL) Docker.
+# Requirements: Node 20.19+ (the frontend's `engines` floor), npm, and (only
+# if no local PostgreSQL) Docker.
 # ============================================================================
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"

@@ -26,9 +26,14 @@
   word-break: break-word;
 }
 
+/* Support-panel convention (review fix): the OPERATOR's voice (ADMIN) sits
+   on the right; the customer (USER) and the bot (ASSISTANT) sit on the left.
+   Colors: customer = warm incoming amber; bot = neutral white; operator =
+   brand-green — the two voices are unmistakable at a glance. */
+
 .msg-bubble--USER {
-  background: #e6f4ff;
-  border-color: #91caff;
+  background: #fff7e6;
+  border-color: #ffd591;
 }
 
 .msg-bubble--ASSISTANT {
@@ -61,6 +66,20 @@
   font-size: 11px;
   line-height: 16px;
   padding-inline: 4px;
+}
+
+/* Delivery badges (review fix): Sent is deliberately quiet — it is the
+   happy path; Retrying/Failed carry color so the operator intervenes. */
+.msg-tag--sent {
+  color: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+.msg-tag--muted {
+  color: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
 }
 
 .msg-time {

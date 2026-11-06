@@ -47,8 +47,9 @@ admins ── (updated_by) ──► assistant_settings
 | claimed_at | timestamptz | delivery lease — atomic claim prevents duplicate sends; a crashed sender's lease expires after 60 s |
 | delivery_attempts / error | int / text | sweeper backoff + visible failure reason |
 | telegram_message_id | bigint | echo from Telegram after a successful send |
-| admin_id | uuid FK → admins | future admin replies |
-| meta | jsonb | model, latency, attempts… — never secrets |
+| admin_id | uuid FK → admins | the operator whose reply this is |
+| client_message_id | varchar(64) | `UNIQUE WHERE role='ADMIN'` — panel's idempotency key; a retried send replays the original message instead of duplicating |
+| meta | jsonb | model, latency, attempts, `sent_chunks`/`first_telegram_message_id` (multipart send progress)… — never secrets |
 | created_at / sent_at | timestamptz | |
 
 ### bot_updates — the inbox
@@ -79,6 +80,10 @@ CREATE UNIQUE INDEX uq_active_ticket_per_user
 -- at most one assistant reply per user message (crash-safe):
 CREATE UNIQUE INDEX uq_messages_in_reply_to_assistant
   ON messages (in_reply_to_id) WHERE role = 'ASSISTANT';
+
+-- one operator reply per panel send (idempotent retries):
+CREATE UNIQUE INDEX uq_messages_client_message_id
+  ON messages (client_message_id) WHERE role = 'ADMIN';
 
 -- fast sweeper scan:
 CREATE INDEX idx_messages_delivery_pending

@@ -73,7 +73,7 @@ power both the outbox dispatcher and the panel's websocket updates. See
 
 ## Prerequisites
 
-- Node.js ≥ 20 (developed on 24)
+- Node.js ≥ 20.19 (developed on 24; matches the frontend's `engines` field)
 - Docker (for PostgreSQL) **or** a local PostgreSQL 16
 - A Telegram bot token and an OpenRouter API key (see below — the repository
   intentionally ships with both **empty**; everything else works without them)
@@ -175,22 +175,25 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 
 ```bash
 cd backend
-npm test                # 149 unit tests (no DB, no network)
-npm run test:e2e        # 26 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
+npm test                # 162 unit tests (no DB, no network)
+npm run test:e2e        # 28 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
 npm run test:cov        # coverage
 
 cd ../frontend
-npm test                # 17 component tests (vitest + React Testing Library, jsdom)
+npm test                # 21 component tests (vitest + React Testing Library, jsdom)
 ```
 
 The e2e suite boots the whole application with only the Telegram transport
 faked — dedup, concurrency, ticket isolation, status rules, auth, sweeper
 crash-recovery, crash **resume**, outbox concurrency/lease, newest-first
 pagination + load-older, **operator replies (delivery + realtime badges)**,
-input validation, retention and the websocket channel all run against a real
-database. Frontend tests cover the conversation's loading/empty/error states,
-the composer's send/double-click-guard/closed-ticket behavior and the bigint
-id merge/pagination logic. See [docs/test-report.md](docs/test-report.md).
+**idempotent operator replies (client_message_id replay)**, **multi-part
+send resume (per-chunk progress)**, cursor range validation, input validation,
+retention and the websocket channel all run against a real database.
+Frontend tests cover the conversation's loading/empty/error states, the
+operator/customer bubble sides and the Sending/Sent/Retrying/Failed delivery
+badges, the composer's send/double-click-guard/idempotency-key behavior and
+the bigint id merge/pagination logic. See [docs/test-report.md](docs/test-report.md).
 
 **CI:** every push runs the backend build + unit tests, the e2e suite on a real
 PostgreSQL 16 service and the frontend component tests + build —

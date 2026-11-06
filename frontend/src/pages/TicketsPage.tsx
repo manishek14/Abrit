@@ -85,7 +85,22 @@ export function TicketsPage(): JSX.Element {
       dataIndex: 'ticket_number',
       key: 'ticket_number',
       width: 140,
-      render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+      // The PRIMARY column carries a real button (review fix — a11y): full
+      // keyboard support (Enter AND Space) and a proper control role, instead
+      // of a fake-focusable table row. The row keeps its mouse-only click.
+      render: (value: string, record) => (
+        <Button
+          type="link"
+          className="ab-cell-link"
+          aria-label={`Open ticket ${value}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            navigate(`/tickets/${record.id}`);
+          }}
+        >
+          {value}
+        </Button>
+      ),
     },
     {
       title: 'Subject',
@@ -176,15 +191,10 @@ export function TicketsPage(): JSX.Element {
             onChange: (page) => updateParams({ page: page === 1 ? null : page }),
           }}
           onRow={(record) => ({
+            // Mouse convenience only — keyboard users use the real button in
+            // the ticket-number column (review fix — no fake-focusable rows).
             onClick: () => navigate(`/tickets/${record.id}`),
-            // Full keyboard support (review fix): rows are focusable, Enter
-            // opens, focus gets a visible ring — not a mouse-only interaction.
-            onKeyDown: (event) => {
-              if (event.key === 'Enter') navigate(`/tickets/${record.id}`);
-            },
-            tabIndex: 0,
             className: 'ab-row-clickable',
-            'aria-label': `Open ticket ${record.ticket_number}`,
           })}
         />
       </Card>

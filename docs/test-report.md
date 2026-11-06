@@ -4,7 +4,8 @@
 - **Environment:** Node v24.22.2 · PostgreSQL 16+ (real server, not SQLite) ·
   NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest · socket.io-client (e2e)
 - **CI:** GitHub Actions runs backend build + unit tests, e2e on PostgreSQL 16
-  and the frontend build on every push (`.github/workflows/ci.yml`)
+  and the frontend component tests + build on every push
+  (`.github/workflows/ci.yml`)
 - **Telegram/OpenRouter credentials:** intentionally empty during this test run
   (per the project owner's instruction). No test performs any network call to
   Telegram or OpenRouter — delivery is faked, AI is either disabled or the
@@ -17,17 +18,20 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 24 scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 28 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
 ## Automated results (actual output)
 
 ```
-Unit:      Test Suites: 17 passed, 17 total
-           Tests:       146 passed, 146 total
+Unit:      Test Suites: 18 passed, 18 total
+           Tests:       162 passed, 162 total
 
 E2E:       Test Suites:  1 passed,  1 total
-           Tests:        24 passed, 24 total
+           Tests:        28 passed, 28 total
+
+Frontend:  Test Files:   3 passed (3)
+           Tests:        21 passed
 
 Coverage:  ~84% statements (baseline held; all new code is covered by the suites below)
 ```
@@ -71,6 +75,13 @@ Coverage:  ~84% statements (baseline held; all new code is covered by the suites
 | #4-c webhook shape | Malformed payloads → 400 BEFORE touching the inbox | e2e `WEBHOOK #4-c` + unit (`update-shape.spec`) | ✅ |
 | retention | Raw inbox rows older than N days purged; conversation history untouched | e2e `RETENTION` | ✅ |
 | config security | JWT_SECRET blacklist + production rules (32+ chars, explicit admin password, no demo seed in prod) | unit (`env.spec`) | ✅ |
+| closed-ticket race | Status check + reply insert share ONE transaction under the SAME pessimistic_write lock `changeStatus` takes — a concurrent close can never slip between check and store | unit (`messages.service.spec` — lock asserted, 409/404 paths) + e2e (`ADMIN REPLY` 409) | ✅ |
+| operator-reply idempotency | Retry with the same `client_message_id` → the ORIGINAL message is returned (HTTP 200), exactly one Telegram send; partial unique index on `messages.client_message_id` (role = ADMIN) | e2e (`ADMIN REPLY IDEMPOTENCY`) + unit (pre-check replay + concurrent-race loser) | ✅ |
+| whitespace-only replies | `"   "` and `" \n\t "` are rejected with 400 at the DTO (trim-before-validate), never stored as empty messages | e2e (`ADMIN REPLY` validation) | ✅ |
+| cursor range validation | `before/after` above BIGINT max or zero → 400 (not a DB 500); the exact bigint boundary is accepted | e2e (`CURSOR VALIDATION`) + unit (`message-id-cursor.validator`) | ✅ |
+| multi-part send resume | Chunk 2 of 3 fails → progress `meta.sent_chunks = 1` persists; the retry sends ONLY chunks 2–3 (no duplicated parts); all-chunks-sent crash finishes bookkeeping without a Telegram call | unit (`outbox-dispatcher.service.spec` — 3 scenarios) | ✅ |
+| panel draft integrity | `key={ticketId}` remounts Composer + Conversation on ticket switch — a draft, its idempotency key and scroll state can never leak into another ticket | component (`Composer.test` — key lifecycle via retry assertions) | ✅ |
+| load-older UX | Scroll-anchored prepend (viewport keeps its content position), inline load-older error + retry, muted empty-state copy, operator/customer bubble sides, Sending/Sent/Retrying/Failed badges | component (`Conversation.test`) | ✅ |
 
 ## Manual scenarios (PDF §11)
 

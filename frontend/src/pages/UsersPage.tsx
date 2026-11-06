@@ -48,7 +48,30 @@ export function UsersPage(): JSX.Element {
       dataIndex: 'telegram_id',
       key: 'telegram_id',
       width: 180,
-      render: (value: string) => <Typography.Text copyable={{ text: value }}>{value}</Typography.Text>,
+      // The PRIMARY column carries a real button (review fix — a11y): Enter
+      // AND Space open the drawer, with a proper control role. Copy stays a
+      // separate affordance; the row keeps its mouse-only click.
+      render: (value: string, record) => (
+        <Space size={4} wrap={false}>
+          <Button
+            type="link"
+            className="ab-cell-link"
+            aria-label={`Open user ${record.username ?? value}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setActiveUserId(record.id);
+            }}
+          >
+            {value}
+          </Button>
+          <span
+            onClick={(event) => event.stopPropagation()}
+            title="Copy Telegram ID"
+          >
+            <Typography.Text copyable={{ text: value }} />
+          </span>
+        </Space>
+      ),
     },
     {
       title: 'Username',
@@ -140,15 +163,10 @@ export function UsersPage(): JSX.Element {
             onChange: (nextPage) => setPage(nextPage),
           }}
           onRow={(record) => ({
+            // Mouse convenience only — keyboard users use the real button in
+            // the Telegram-id column (review fix — no fake-focusable rows).
             onClick: () => setActiveUserId(record.id),
-            // Full keyboard support (review fix): rows are focusable, Enter
-            // opens the drawer, focus gets a visible ring.
-            onKeyDown: (event) => {
-              if (event.key === 'Enter') setActiveUserId(record.id);
-            },
-            tabIndex: 0,
             className: 'ab-row-clickable',
-            'aria-label': `Open user ${record.username ?? record.telegram_id}`,
           })}
         />
       </Card>

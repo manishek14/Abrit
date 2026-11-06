@@ -159,6 +159,14 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--ab-space-3);
+  /* Visual hierarchy (review fix): the header is a distinct band above the
+     conversation — a clear seam, not floating controls. */
+  padding-bottom: var(--ab-space-3);
+  border-bottom: 1px solid var(--ab-color-border);
+  background: var(--ab-color-surface);
+  border-radius: var(--ab-radius-md);
+  padding-inline: var(--ab-space-2);
+  padding-top: var(--ab-space-2);
 }
 
 .ticket-detail__header-title {
@@ -170,10 +178,10 @@ body {
   min-width: 0;
 }
 
-.conversation-refresh-note {
-  display: block;
-  margin-bottom: var(--ab-space-2);
-  color: var(--ab-color-text-secondary);
+/* Last-activity is the panel's ranking signal — read it at a glance (review fix). */
+.ticket-detail__header-activity {
+  color: rgba(0, 0, 0, 0.65);
+  font-weight: 500;
 }
 
 .ticket-detail__header-meta {
@@ -181,7 +189,33 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--ab-space-2);
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.conversation-refresh-note {
+  display: block;
+  margin-bottom: var(--ab-space-2);
   color: var(--ab-color-text-secondary);
+}
+
+/* Load-older row: button + inline error + retry on one line (review fix). */
+.conversation-load-older__error {
+  font-size: 13px;
+}
+
+/* Real link-button inside table cells (review fix — a11y): antd's default
+   link button padding would blow up the row height. */
+.ab-cell-link {
+  padding: 0;
+  height: auto;
+  font-weight: 600;
+}
+
+.ab-cell-link:focus-visible {
+  outline: 2px solid var(--ab-color-primary);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .ticket-detail__body {
@@ -285,22 +319,16 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   Accessible clickable rows (tickets/users tables, drawer items): full
-   keyboard support + a visible focus ring that survives AntD's styles.
+   Clickable rows (tickets/users tables): mouse convenience; keyboard access
+   goes through the real link-button in the primary column (see .ab-cell-link).
    -------------------------------------------------------------------------- */
 
 .ab-row-clickable {
   cursor: pointer;
 }
 
-.ab-row-clickable:focus-visible {
-  outline: 2px solid var(--ab-color-primary);
-  outline-offset: -2px;
-}
-
-.ab-row-clickable:focus-visible > td {
-  background: var(--ab-color-primary-soft);
-}
+/* Rows are mouse-convenience only (review fix — a11y): the real focusable
+   control is the link-button in the primary column (see .ab-cell-link). */
 
 /* --------------------------------------------------------------------------
    Brand & login

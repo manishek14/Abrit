@@ -190,13 +190,21 @@ export function useChangeTicketStatus(ticketId: string) {
  * realtime message:updated events flip the badge to SENT/FAILED — the hook
  * also invalidates the ticket list because last_message_at advanced.
  */
+export interface SendAdminMessagePayload {
+  content: string;
+  /**
+   * Idempotency key (review fix): generated per draft-send by the Composer and
+   * REUSED when the operator retries a failed/lost send, so the server returns
+   * the original message instead of storing a duplicate reply.
+   */
+  client_message_id: string;
+}
+
 export function useSendAdminMessage(ticketId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (content: string): Promise<Message> => {
-      const response = await api.post<{ data: Message }>(`/tickets/${ticketId}/messages`, {
-        content,
-      });
+    mutationFn: async (payload: SendAdminMessagePayload): Promise<Message> => {
+      const response = await api.post<{ data: Message }>(`/tickets/${ticketId}/messages`, payload);
       return response.data.data;
     },
     onSuccess: (message) => {

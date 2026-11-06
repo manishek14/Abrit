@@ -65,12 +65,17 @@ export function TicketDetailPage(): JSX.Element {
 
   // Track which conversation is on screen (for realtime merges) and force a
   // cheap incremental refetch of both queries every time the page is opened.
+  // Mutations reset on ticket switch so no stale error/sending state can
+  // leak into the next conversation (review fix).
   useEffect(() => {
     setCurrentTicketId(ticketId);
+    loadOlderMutation.reset();
+    sendMessageMutation.reset();
     void queryClient.invalidateQueries({ queryKey: queryKeys.ticket(ticketId) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages(ticketId) });
     return () => setCurrentTicketId(null);
-  }, [ticketId, queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId]);
 
   const notFound =
     ticketQuery.isError && ticketQuery.error instanceof AxiosError && ticketQuery.error.response?.status === 404;
@@ -109,6 +114,17 @@ export function TicketDetailPage(): JSX.Element {
 
   const ticket = ticketQuery.data;
   const closed = ticket != null && ticket.status === 'CLOSED';
+  // Blocked customers cannot receive Telegram replies (the dispatcher would
+  // permanently fail the send) — the composer explains this instead of letting
+  // the operator type into the void (review fix). The BACKEND remains the
+  // source of truth for sendability; this is a UX guard only.
+  const blocked = ticket?.user.is_blocked ?? false;
+  const repliesDisabled = closed || blocked;
+  const replyDisabledHint = closed
+    ? 'This ticket is closed — reopen it (status menu above) to send replies.'
+    : blocked
+      ? 'This user has blocked the bot — replies cannot be delivered to their Telegram chat.'
+      : undefined;
 
   const userItems: DescriptionsProps['items'] = ticket
     ? [
@@ -182,9 +198,14 @@ export function TicketDetailPage(): JSX.Element {
           <div className="ticket-detail__header">
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/tickets')} aria-label="Back to tickets" />
             <Space direction="vertical" size={0} className="ticket-detail__header-title-wrap">
-              <Typography.Title level={4} className="ticket-detail__header-title">
-                {ticket.ticket_number}
-              </Typography.Title>
+              <Space size={10}>
+                <Typography.Title level={4} className="ticket-detail__header-title">
+                  {ticket.ticket_number}
+                </Typography.Title>
+                {/* status readable at first glance (review fix) — the select on
+                    the right remains the control for CHANGING it */}
+                <StatusBadge status={ticket.status} />
+              </Space>
               {ticket.subject ? (
                 <Typography.Text type="secondary">{ticket.subject}</Typography.Text>
               ) : (
@@ -218,7 +239,7 @@ export function TicketDetailPage(): JSX.Element {
                 </span>
               </Tooltip>
               <Tooltip title={formatDateTime(ticket.last_message_at)}>
-                <span>
+                <span className="ticket-detail__header-activity">
                   <ClockCircleOutlined /> active {dayjs(ticket.last_message_at).fromNow()}
                 </span>
               </Tooltip>
@@ -243,9 +264,31 @@ export function TicketDetailPage(): JSX.Element {
                     >
                       Load older messages
                     </Button>
+                    {/* Load-older failures surface INLINE with their own retry
+                        (review fix): previously the mutation failed silently
+                        and the operator had no idea history hadn't loaded. */}
+                    {loadOlderMutation.isError && (
+                      <Typography.Text
+                        type="danger"
+                        role="alert"
+                        className="conversation-load-older__error"
+                      >
+                        {getApiErrorMessage(loadOlderMutation.error, "Couldn't load older messages.")}
+                      </Typography.Text>
+                    )}
+                    {loadOlderMutation.isError && (
+                      <Button
+                        size="small"
+                        type="link"
+                        onClick={() => loadOlderMutation.mutate()}
+                      >
+                        Retry
+                      </Button>
+                    )}
                   </div>
                 )}
                 <Conversation
+                  key={ticketId}
                   messages={messages}
                   loading={conversationQuery.isLoading}
                   error={conversationQuery.isError && messages.length === 0}
@@ -254,11 +297,18 @@ export function TicketDetailPage(): JSX.Element {
                 />
               </Card>
               <Card styles={{ body: { padding: 16 } }}>
+                {/* key={ticketId}: remounts the composer on ticket switch so a
+                    half-written draft (and its idempotency key) can never be
+                    sent to the WRONG customer (review fix — draft transfer). */}
                 <Composer
-                  disabled={closed}
-                  disabledHint="This ticket is closed — reopen it (status menu above) to send replies."
-                  onSend={async (content) => {
-                    await sendMessageMutation.mutateAsync(content);
+                  key={ticketId}
+                  disabled={repliesDisabled}
+                  disabledHint={replyDisabledHint}
+                  onSend={async (content, clientMessageId) => {
+                    await sendMessageMutation.mutateAsync({
+                      content,
+                      client_message_id: clientMessageId,
+                    });
                   }}
                 />
               </Card>

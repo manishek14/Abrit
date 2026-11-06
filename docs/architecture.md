@@ -74,6 +74,11 @@ transaction (transactional-outbox pattern).
 
 - **Per-chat ordering** — an in-process `Map<chat_id, Promise>` serializes each
   user's updates so the second message's AI context contains the first reply.
+  ⚠ **Single-instance only**: the queue lives in process memory — with two or
+  more backend instances behind a load balancer, updates of the same chat may
+  land on different instances and their relative processing order is NOT
+  guaranteed. Multi-instance ordering needs the scale-up path below (per-chat
+  advisory locks or a shared queue).
 - **AI concurrency cap** — a counting semaphore (default 3) protects the
   OpenRouter rate limit.
 - **One active ticket per user** — PostgreSQL partial unique index, race-free;
@@ -85,6 +90,17 @@ transaction (transactional-outbox pattern).
   `claimForDelivery`: `UPDATE messages SET claimed_at = now() WHERE …` with a
   60 s lease; the immediate dispatcher and the sweeper can never deliver the
   same message twice, even concurrently.
+- **Multi-part sends are resumable** — after every successfully delivered
+  chunk the progress is committed to `messages.meta.sent_chunks`; a retry
+  (sweeper or crash recovery) continues at the first UNSENT chunk, so the
+  user never receives an already-delivered part twice.
+- **Operator replies are idempotent end-to-end** — the panel generates a
+  `client_message_id` per draft-send and reuses it on retry; a partial unique
+  index (`role = 'ADMIN'`) turns a duplicate insert into a replay of the
+  ORIGINAL message. The status check and the insert share one transaction
+  holding the ticket row's pessimistic_write lock (the SAME lock
+  `changeStatus` takes), so a reply can never slip into a ticket that closed
+  concurrently.
 
 ## Data retention
 
@@ -107,11 +123,17 @@ indefinitely and are NOT affected by the purge.
 
 ## Known limitations
 
-- Per-chat queue is in-memory → single instance (see scale-up path).
+- **Per-chat ordering is NOT guaranteed in multi-instance deployments** — the
+  queue is in-memory (single instance). Run exactly one backend instance per
+  database until the scale-up path (per-chat advisory locks / shared queue)
+  is built; no ordering claim should be made for horizontally-scaled setups.
 - Outbox delivery is at-least-once ONLY across a hard crash between a successful
-  Telegram send and the SENT update (concurrent duplicate sends are impossible —
-  atomic claim); that rare crash window can duplicate one message.
+  Telegram send (of the LAST chunk) and the SENT update (concurrent duplicate
+  sends are impossible — atomic claim; per-chunk progress prevents multipart
+  duplication); that rare crash window can duplicate one message.
 - Context windowing is message-count + character-budget, not exact token count.
 - JWT in localStorage (Bearer) — httpOnly cookies are the hardened upgrade.
 - A message right after `/close` opens a NEW ticket (simple, PDF-compliant
   policy; a post-close grace window is the possible refinement).
+- Real Telegram/OpenRouter credentials are not exercised in the automated
+  suites (delivery is faked) — a real-bot smoke run remains an owner task.
