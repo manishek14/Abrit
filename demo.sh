@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# AbrIT — one-command demo deployment
+# Abrit — one-command demo deployment
 #
 #   ./demo.sh
 #
@@ -9,11 +9,14 @@
 #      `docker compose up -d db` (postgres:16-alpine from docker-compose.yml)
 #   2. Backend    — production build (node dist/main.js) on :3000;
 #      pending migrations and the Persian demo seed run automatically on boot
-#   3. Admin panel — static frontend build served by `vite preview` on :5173
+#
+# The admin panel is no longer part of this repository — run it from the
+# companion repo (https://github.com/manishek14/Abrit-front):
+#   git clone https://github.com/manishek14/Abrit-front.git && cd Abrit-front
+#   npm install && npm run dev        # panel on http://localhost:5173
 #
 # Demo login: admin@abrit.local / Admin1234!   (development default — see .env)
-# Requirements: Node 20.19+ (the frontend's `engines` floor), npm, and (only
-# if no local PostgreSQL) Docker.
+# Requirements: Node 20.19+, npm, and (only if no local PostgreSQL) Docker.
 # ============================================================================
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -36,7 +39,6 @@ fi
 DB_URL="$(sed -n 's/^DATABASE_URL=//p' .env | tail -1 | tr -d '\r')"
 API_PORT="$(sed -n 's/^PORT=//p' .env | tail -1 | tr -d '\r')"
 API_PORT="${API_PORT:-3000}"
-PANEL_PORT="${PANEL_PORT:-5173}"
 
 # The .env file is the single source of truth for the demo: ambient env vars
 # (which @nestjs/config would prefer) must not override it.
@@ -66,18 +68,11 @@ fi
 # --- 3) builds (idempotent: skipped when the artifacts exist) ---------------
 [ -d backend/node_modules ]  || (cd backend  && npm ci --no-audit --no-fund)
 [ -f backend/dist/main.js ]   || (cd backend  && npm run build)
-[ -d frontend/node_modules ]  || (cd frontend && npm ci --no-audit --no-fund)
-[ -f frontend/dist/index.html ] || (cd frontend && npm run build)
 
 # --- 4) run ------------------------------------------------------------------
-# Panel in the background, backend in the foreground (Ctrl-C stops both).
-(cd frontend && exec npx vite preview --port "$PANEL_PORT" --strictPort --host 0.0.0.0) &
-PANEL_PID=$!
-trap 'kill "$PANEL_PID" 2>/dev/null || true' EXIT
-
-log "admin panel   → http://localhost:${PANEL_PORT}"
 log "API / docs    → http://localhost:${API_PORT}/api   (swagger: /api/docs)"
 log "demo login    → admin@abrit.local / Admin1234!     (override in .env)"
+log "admin panel   → run from the Abrit-front repo (npm run dev → http://localhost:5173)"
 log "migrations + Persian demo seed run automatically on boot"
 
 cd backend

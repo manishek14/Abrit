@@ -1,20 +1,26 @@
-# AbrIT — AI-Powered Telegram Ticketing System
+# Abrit — AI-Powered Telegram Ticketing System
 
-A Telegram support bot with an AI assistant (OpenRouter), a realtime web admin
-panel, a NestJS backend and PostgreSQL — built for the **AbrIT technical trial
-assignment** (deadline: Sat 16 Aban 1405 / Nov 7 2026, 12:00).
+A Telegram support bot with an AI assistant (OpenRouter), a NestJS backend and
+PostgreSQL — built for the **Abrit technical trial assignment**
+(deadline: Sat 16 Aban 1405 / Nov 7 2026, 12:00).
+
+This repository is **backend-only**. The realtime web admin panel lives in the
+companion repository **[Abrit-front](https://github.com/manishek14/Abrit-front)**.
 
 > **Stack:** NestJS 11 · TypeORM · PostgreSQL 16 · Telegraf · OpenRouter ·
-> React 18 + Vite + TypeScript + Ant Design 5 · TanStack Query · Socket.IO ·
-> JWT + bcrypt · Jest + Supertest
+> Socket.IO · JWT + bcrypt · Jest + Supertest — the admin panel
+> (React 18 + Vite + Ant Design 5 · TanStack Query) lives in
+> [Abrit-front](https://github.com/manishek14/Abrit-front)
 
 ![login](docs/screenshots/01-login.png)
 ![dashboard](docs/screenshots/02-dashboard.png)
 ![live ticket](docs/screenshots/03-ticket-live.png)
 ![settings](docs/screenshots/04-settings.png)
 
-*(Screenshots are from a real run of this repository — the ticket screen shows a
-Telegram message arriving over the live websocket while the panel stays open.)*
+*(Screenshots are from a real run of the system — the panel shown is built
+from the companion [Abrit-front](https://github.com/manishek14/Abrit-front)
+repository; the ticket screen shows a Telegram message arriving over the live
+websocket while the panel stays open.)*
 
 ## Features
 
@@ -56,8 +62,8 @@ Telegram message arriving over the live websocket while the panel stays open.)*
   can never call OpenRouter twice (durable `last_update_id` marker). `/help`
   lists the commands and NEVER touches OpenRouter (§7) — the BotFather command
   list is synced at boot with the same wording.
-- **ABRIT AI general chat (feature round)** — out-of-ticket plain text goes to
-  OpenRouter with the fixed ABRIT AI persona (Persian-first, no invented
+- **Abrit AI general chat (feature round)** — out-of-ticket plain text goes to
+  OpenRouter with the fixed Abrit AI persona (Persian-first, no invented
   ticket data, guides users to the menus). An OpenRouter outage only degrades
   the chat — registration, the wizard and /mytickets keep working. The state
   machine lives on `telegram_users.bot_state` (DB-backed, 3h TTL, strict
@@ -96,7 +102,8 @@ Telegram message arriving over the live websocket while the panel stays open.)*
   state, users, assistant settings — all realtime via **Socket.IO** with
   automatic polling fallback and a full cache resync after every reconnect.
   Keyboard-accessible rows, responsive tables/drawer and a shared design-token
-  theme round out the panel.
+  theme round out the panel. The panel source lives in
+  [Abrit-front](https://github.com/manishek14/Abrit-front).
 - **Secure by default** — JWT everywhere except login/health/webhook (webhook
   authenticates with the dedicated Telegram secret, compared in constant time
   and now with structural payload validation), bcrypt-hashed passwords, login
@@ -119,7 +126,7 @@ power both the outbox dispatcher and the panel's websocket updates. See
 
 ## Prerequisites
 
-- Node.js ≥ 20.19 (developed on 24; matches the frontend's `engines` field)
+- Node.js ≥ 20.19 (developed on 24)
 - Docker (for PostgreSQL) **or** a local PostgreSQL 16
 - A Telegram bot token and an OpenRouter API key (see below — the repository
   intentionally ships with both **empty**; everything else works without them)
@@ -127,13 +134,13 @@ power both the outbox dispatcher and the panel's websocket updates. See
 ## Quick start (development)
 
 **One command** — creates `.env` from the template (random JWT secret), starts
-PostgreSQL (`docker compose up -d db` when no server is reachable), builds
-backend + frontend once and boots the production build of both:
+PostgreSQL (`docker compose up -d db` when no server is reachable), builds the
+backend once and boots its production build:
 
 ```bash
 ./demo.sh
-# admin panel → http://localhost:5173   (login: admin@abrit.local / Admin1234!)
 # API + docs  → http://localhost:3000/api (swagger: /api/docs)
+# login:      admin@abrit.local / Admin1234!
 ```
 
 Or step by step:
@@ -149,9 +156,9 @@ npm run start:dev             # migrations run automatically on boot (idempotent
 # Swagger:  http://localhost:3000/api/docs
 # Login:    admin@abrit.local / Admin1234! (from .env.example — change in .env)
 
-cd ../frontend
-npm install
-npm run dev                   # panel on http://localhost:5173
+# Admin panel — separate repository:
+#   git clone https://github.com/manishek14/Abrit-front.git && cd Abrit-front
+#   npm install && npm run dev   # panel on http://localhost:5173
 ```
 
 Demo data (Persian sample users/tickets/messages) is seeded automatically on
@@ -164,7 +171,9 @@ cp .env.example .env          # مقدار JWT_SECRET را عوض کنید
 docker compose up -d db       # پایگاه‌داده PostgreSQL روی پورت 5432
 
 cd backend && npm install && npm run start:dev   # مایگریشن‌ها هنگام بوت اجرا می‌شوند
-cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://localhost:5173
+# پنل مدیریت از ریپوی جدا اجرا شود:
+#   git clone https://github.com/manishek14/Abrit-front.git && cd Abrit-front
+#   npm install && npm run dev     # پنل مدیریت: http://localhost:5173
 ```
 
 - ورود به پنل: `admin@abrit.local` / `Admin1234!` (از `.env.example`؛ در تولید عوضش کنید)
@@ -213,7 +222,7 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
    → copy the token into `TELEGRAM_BOT_TOKEN` → restart. Then in the bot chat:
    `/start` (completes the mandatory profile), then «🎫 ثبت تیکت جدید» and
    follow the wizard (title → department → description), check «📋 تیکت‌های من»
-   or `/mytickets`, ask general questions in plain text (ABRIT AI), `/status`,
+   or `/mytickets`, ask general questions in plain text (Abrit AI), `/status`,
    `/close`. Optionally run
    `curl -F "url=https://YOUR HOST/api/telegram/webhook" -F "secret_token=$TELEGRAM_WEBHOOK_SECRET" https://api.telegram.org/bot<TOKEN>/setWebhook`
    and switch `TELEGRAM_MODE=webhook`.
@@ -229,10 +238,10 @@ cd backend
 npm test                # 272 unit tests (no DB, no network)
 npm run test:e2e        # 50 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
 npm run test:cov        # coverage
-
-cd ../frontend
-npm test                # 37 component tests (vitest + React Testing Library, jsdom)
 ```
+
+The admin panel's component tests (vitest + React Testing Library) live in the
+[Abrit-front](https://github.com/manishek14/Abrit-front) repository.
 
 The e2e suite boots the whole application with only the Telegram transport
 faked — dedup, concurrency, ticket isolation, status rules, auth, sweeper
@@ -241,20 +250,20 @@ pagination + load-older, **operator replies (delivery + realtime badges)**,
 **idempotent operator replies (client_message_id replay)**, **multi-part
 send resume (per-chunk progress)**, cursor range validation, input validation,
 retention and the websocket channel all run against a real database.
-Frontend tests cover the conversation's loading/empty/error states, the
-operator/customer bubble sides and the Sending/Sent/Retrying/Failed delivery
-badges, the composer's send/double-click-guard/idempotency-key behavior and
-the bigint id merge/pagination logic. See [docs/test-report.md](docs/test-report.md).
+The panel-side coverage (conversation loading/empty/error states, bubble sides,
+delivery badges, the composer's send/idempotency guards and the bigint id
+merge/pagination logic) lives in [Abrit-front](https://github.com/manishek14/Abrit-front).
+See [docs/test-report.md](docs/test-report.md).
 
-**CI:** every push runs the backend build + unit tests, the e2e suite on a real
-PostgreSQL 16 service and the frontend component tests + build —
-[.github/workflows/ci.yml](.github/workflows/ci.yml).
+**CI:** every push runs the backend build + unit tests and the e2e suite on a
+real PostgreSQL 16 service — [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Demo scenario for the evaluator
 
 With the default `.env` (both keys empty):
 
-1. `docker compose up -d db` + start backend & frontend (see Quick start).
+1. `docker compose up -d db` + start the backend (see Quick start); run the
+   panel from [Abrit-front](https://github.com/manishek14/Abrit-front).
 2. Log into the panel — 6 stat cards, seeded Persian demo data, users/tickets/
    conversations are all live.
 3. Open a ticket: watch the bidi-safe conversation (long conversations open on
@@ -333,8 +342,10 @@ real AI replies with zero code changes.
 
 ## Production deployment
 
-Dockerfiles for both apps, an nginx reverse proxy (REST + WebSocket), a
-production compose file, managed-PostgreSQL TLS support and the full
+Dockerfile for the backend, a production compose file (the panel is consumed
+as the `abrit-front:latest` image built from
+[Abrit-front](https://github.com/manishek14/Abrit-front)), an nginx reverse
+proxy (REST + WebSocket), managed-PostgreSQL TLS support and the full
 runbook — backup/retention, HTTPS, restart behavior, the single-instance
 constraint and the liveness/readiness monitoring split — live in
 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** with

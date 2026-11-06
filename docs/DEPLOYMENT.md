@@ -21,13 +21,15 @@ how the database is backed up, and what happens after a server restart.
                              └──────────────────────────────────────────────────────────────────────┘
 ```
 
-Everything ships in this repository:
+The backend, orchestration and env template ship in this repository; the admin
+panel image is built from the companion
+[Abrit-front](https://github.com/manishek14/Abrit-front) repository:
 
 | Piece | File | Purpose |
 |---|---|---|
 | Backend image | `backend/Dockerfile` | multi-stage build, non-root, dumb-init, liveness healthcheck |
-| Frontend image | `frontend/Dockerfile` | vite build → nginx runtime |
-| Reverse proxy | `frontend/nginx.conf` | static SPA + `/api` + `/socket.io` proxying (WebSocket upgrade headers included) |
+| Frontend image | built from [Abrit-front](https://github.com/manishek14/Abrit-front) | vite build → nginx runtime (tag `abrit-front:latest`) |
+| Reverse proxy | `nginx.conf` in Abrit-front | static SPA + `/api` + `/socket.io` proxying (WebSocket upgrade headers included) |
 | Orchestration | `docker-compose.prod.yml` | db + backend + frontend (+ optional `db-backup` profile) |
 | Env template | `.env.production.example` | every production variable with generation hints |
 
@@ -44,6 +46,10 @@ Everything ships in this repository:
 cp .env.production.example .env.production
 # EDIT .env.production: JWT_SECRET, POSTGRES_PASSWORD, ADMIN_PASSWORD,
 # CORS_ORIGIN, TELEGRAM_* (see the hints inside the file)
+
+# build the panel image from the companion repo (once, and after panel updates)
+git clone https://github.com/manishek14/Abrit-front.git ../Abrit-front
+docker build -t abrit-front:latest ../Abrit-front
 
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
@@ -103,9 +109,10 @@ receive a cookie, which is intentional.
 
 ## 5. WebSocket through the reverse proxy
 
-The panel's realtime channel is socket.io on `/socket.io/`. The bundled
-`frontend/nginx.conf` already contains the mandatory bits — if you replace the
-proxy, keep them:
+The panel's realtime channel is socket.io on `/socket.io/`. The `nginx.conf`
+bundled in the [Abrit-front](https://github.com/manishek14/Abrit-front)
+repository already contains the mandatory bits — if you replace the proxy,
+keep them:
 
 ```nginx
 proxy_http_version 1.1;
@@ -208,6 +215,7 @@ someone, not pass.
 
 ```bash
 git pull
+# if the panel changed: docker build -t abrit-front:latest ../Abrit-front
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 

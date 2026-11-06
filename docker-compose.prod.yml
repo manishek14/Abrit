@@ -1,8 +1,14 @@
 # ============================================================================
-# AbrIT — PRODUCTION deployment (review round 6, P1 deployment infrastructure)
+# Abrit — PRODUCTION deployment (review round 6, P1 deployment infrastructure)
 #
 #   cp .env.production.example .env.production   # fill in REAL secrets first!
+#   docker build -t abrit-front:latest /path/to/Abrit-front   # panel from the split repo
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Repository split: this repository is BACKEND-ONLY; the admin panel source
+# lives in the separate https://github.com/manishek14/Abrit-front repository.
+# The `frontend` service below consumes the `abrit-front:latest` image built
+# from it (build context: backend/ → `build: ./backend`).
 #
 # Topology (all on one host, one backend instance — see docs/DEPLOYMENT.md):
 #
@@ -58,8 +64,11 @@ services:
       start_period: 25s
       retries: 3
 
+  # The admin panel SPA is built from the separate Abrit-front repository:
+  #   git clone https://github.com/manishek14/Abrit-front.git
+  #   docker build -t abrit-front:latest Abrit-front
   frontend:
-    build: ./frontend
+    image: abrit-front:latest
     container_name: abrit-frontend
     restart: unless-stopped
     ports:

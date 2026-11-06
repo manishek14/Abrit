@@ -3,9 +3,9 @@
 - **Date:** 13–17 Aban 1405 / 4–8 Nov 2026
 - **Environment:** Node v24.22.2 · PostgreSQL 16+ (real server, not SQLite) ·
   NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest · socket.io-client (e2e)
-- **CI:** GitHub Actions runs backend build + unit tests, e2e on PostgreSQL 16
-  and the frontend component tests + build on every push
-  (`.github/workflows/ci.yml`)
+- **CI:** GitHub Actions runs backend build + unit tests and e2e on PostgreSQL
+  16 on every push (`.github/workflows/ci.yml`); the panel's component tests
+  + build run in the separate Abrit-front repository
 - **Telegram/OpenRouter credentials:** unit/e2e suites still run with EMPTY
   credentials (faked delivery, AI disabled/fallback — no network calls). A
   REAL-credential smoke test was run on 6 Nov 2026 (@ABRIT_Ticket_Bot + the
@@ -29,8 +29,8 @@ Unit:      Test Suites: 34 passed, 34 total
 E2E:       Test Suites:  3 passed,  3 total
            Tests:        67 passed, 67 total
 
-Frontend:  Test Files:   6 passed (6)
-           Tests:        39 passed (39)
+Frontend:  Test Files:   6 passed (6)   # panel — historical monorepo-era
+           Tests:        39 passed (39) # results; maintained in Abrit-front now
 ```
 
 ## Chatbot / profile-gate round (request §1–§9, 6 Nov 2026)
@@ -162,7 +162,7 @@ Run with the owner's real Telegram bot token and OpenRouter key (filled in
 
 | Check | Result |
 |---|---|
-| `getMe()` with the real token | ✅ `@ABRIT_Ticket_Bot` (ABRIT Support) |
+| `getMe()` with the real token | ✅ `@ABRIT_Ticket_Bot` (Abrit Support) |
 | Polling bootstrap (`onApplicationBootstrap`) | ✅ after the launch fix: `Polling started`, HTTP bound, readiness `telegram: ok` — **before the fix the whole bootstrap froze and the API never listened** (P0 found only by this smoke test) |
 | Webhook ingestion (secret-protected) → inbox → ticket | ✅ TKT-10004 created from a synthetic update, inbox `DONE / REPLY_SAVED` on attempt 1 |
 | Real OpenRouter reply | ✅ `nvidia/nemotron-3-ultra-550b-a55b:free`, 358 tokens (175 prompt + 183 completion), 5.1 s latency, honest Persian reply; integration state flipped `starting → ok` |
