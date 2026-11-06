@@ -1,7 +1,7 @@
 {
   "name": "abrit-backend",
   "version": "0.1.0",
-  "description": "AbrIT Telegram ticketing system — NestJS backend",
+  "description": "Abrit Telegram ticketing system — NestJS backend",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

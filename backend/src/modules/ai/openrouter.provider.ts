@@ -28,7 +28,7 @@ export class OpenRouterProvider implements AiProvider {
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${this.env.OPENROUTER_API_KEY}`,
-          'x-title': 'AbrIT Telegram Ticketing',
+          'x-title': 'Abrit Telegram Ticketing',
         },
         body: JSON.stringify({
           model: req.model,

@@ -11,7 +11,7 @@ import { createTestApp } from '../testing/app-builder';
  * cancel semantics and keyboard correctness — against REAL PostgreSQL with
  * only the Telegram transport faked.
  */
-describe('ABRIT feature flows (profile → wizard → mytickets → AI chat)', () => {
+describe('Abrit feature flows (profile → wizard → mytickets → AI chat)', () => {
   let app: INestApplication;
   let fakeGateway: FakeTelegramGateway;
   let ds: DataSource;
@@ -465,7 +465,7 @@ describe('ABRIT feature flows (profile → wizard → mytickets → AI chat)', (
     await register(810021);
     clearSent();
     await postUpdate(messageUpdate(810021, '/chatbot'));
-    await waitForSentFor(810021, 'دستیار هوشمند ABRIT خوش آمدید');
+    await waitForSentFor(810021, 'دستیار هوشمند Abrit خوش آمدید');
     const intro = lastSent();
     expect(intro.text).toContain('سؤال خود را ارسال کنید');
     const kb = intro.reply_markup as { keyboard: { text: string }[][] };

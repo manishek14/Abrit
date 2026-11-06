@@ -27,7 +27,7 @@ import {
 
 /**
  * The CHATBOT MODE owner (request §4/§5) — the explicit, stateful way to talk
- * to ABRIT AI:
+ * to Abrit AI:
  *
  *   /chatbot (profile-gated) → intro + chatbot keyboard → CHAT state
  *   every later plain text is consumed HERE (never a ticket request, never a

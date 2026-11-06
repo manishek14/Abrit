@@ -395,7 +395,7 @@ describe('TelegrafGateway (callback_query forwarding + editMessageText)', () => 
     (gateway as unknown as { bot: Telegraf }).bot.botInfo = {
       id: 9031915835,
       is_bot: true,
-      first_name: 'ABRIT Support',
+      first_name: 'Abrit Support',
       username: 'ABRIT_Ticket_Bot',
       can_join_groups: false,
       can_read_all_group_messages: false,

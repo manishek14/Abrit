@@ -29,7 +29,7 @@ export interface GeneralChatResult {
 /**
  * OpenRouter conversations OUTSIDE any ticket (feature requirement §6):
  * general questions, bot usage guidance, intent triage — powered by the exact
- * ABRIT AI persona prompt + real backend facts (profile name, active ticket).
+ * Abrit AI persona prompt + real backend facts (profile name, active ticket).
  *
  * Deliberately REUSES the production seams (no second client, no parallel
  * wiring — §10): the same AI_PROVIDER transport, the same semaphore bound, the

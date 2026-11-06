@@ -1,5 +1,5 @@
 # ============================================================================
-# AbrIT backend — multi-stage build (review round 6, P1 deployment infra)
+# Abrit backend — multi-stage build (review round 6, P1 deployment infra)
 #   build : npm ci → nest build            (dev deps included)
 #   run   : production deps only, non-root, healthcheck on /api/health/live
 # Configuration is 100% via environment variables (see .env.production.example).

@@ -96,7 +96,7 @@ export class CommandsService {
     await sendEphemeral(
       this.gateway,
       chatId,
-      `سلام ${user.full_name}! به پشتیبانی ABRIT خوش آمدید.\nاز منوی زیر انتخاب کنید یا سؤال خود را مستقیم بپرسید.`,
+      `سلام ${user.full_name}! به پشتیبانی Abrit خوش آمدید.\nاز منوی زیر انتخاب کنید یا سؤال خود را مستقیم بپرسید.`,
       this.logger,
       { reply_markup: mainMenuKeyboard() },
     );
@@ -199,7 +199,7 @@ export class CommandsService {
   }
 }
 
-/** Extracts a bot command like "/new", "/close@AbrITBot" or "/status جزئیات" — null for plain text. */
+/** Extracts a bot command like "/new", "/close@AbritBot" or "/status جزئیات" — null for plain text. */
 export function parseCommand(text: string): ParsedCommand | null {
   if (!text.startsWith('/')) return null;
   const name = text.slice(1).split(/[\s@]/)[0]?.toLowerCase() ?? '';

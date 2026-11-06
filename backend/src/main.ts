@@ -28,7 +28,7 @@ async function bootstrap(): Promise<void> {
 
   // Interactive API docs (Bearer-auth protected routes marked accordingly)
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('AbrIT Ticketing API')
+    .setTitle('Abrit Ticketing API')
     .setDescription('AI-powered Telegram ticketing system — admin REST API')
     .setVersion('0.1.0')
     .addBearerAuth()
@@ -37,7 +37,7 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup('api/docs', app, document);
 
   await app.listen(env.PORT);
-  Logger.log(`AbrIT API listening on http://localhost:${env.PORT}/api (docs: /api/docs)`, 'Bootstrap');
+  Logger.log(`Abrit API listening on http://localhost:${env.PORT}/api (docs: /api/docs)`, 'Bootstrap');
 }
 
 // Round 6 fix #1: a failed bootstrap (bad Telegram token in production, DB

@@ -11,7 +11,7 @@ import { formatJalaliDateTime } from './jalali';
 
 // ── registration (§1) ────────────────────────────────────────────────────────
 export const REG_WELCOME =
-  'سلام! به ABRIT خوش آمدید.\n\n' +
+  'سلام! به Abrit خوش آمدید.\n\n' +
   'برای شروع، لطفاً نام و نام خانوادگی خود را وارد کنید.';
 
 export const REG_ASK_PHONE = 'لطفاً شماره همراه خود را ارسال کنید.';
@@ -37,7 +37,7 @@ export const GENERIC_CANCELED = 'عملیات جاری لغو شد.';
 
 // ── chatbot mode (request §4/§5) ─────────────────────────────────────────────
 export const CHATBOT_INTRO =
-  'به دستیار هوشمند ABRIT خوش آمدید. سؤال خود را ارسال کنید.';
+  'به دستیار هوشمند Abrit خوش آمدید. سؤال خود را ارسال کنید.';
 
 /** The EXACT waiting text required by request §5 — sent BEFORE OpenRouter. */
 export const CHATBOT_WAITING =
@@ -80,7 +80,7 @@ export function trackNoTicket(): string {
 /** Help text — the commands + the menu buttons (shown with the main menu). */
 export function helpText(): string {
   return [
-    '❓ راهنمای ربات ABRIT',
+    '❓ راهنمای ربات Abrit',
     '',
     'دستور‌ها:',
     '/new — ثبت تیکت جدید',
@@ -98,7 +98,7 @@ export function helpText(): string {
     '🔍 پیگیری تیکت — وضعیت آخرین تیکت',
     '👤 پروفایل من — اطلاعات پروفایل',
     '',
-    'برای گفت‌وگو با دستیار هوشمند ABRIT دستور /chatbot را بزنید.',
+    'برای گفت‌وگو با دستیار هوشمند Abrit دستور /chatbot را بزنید.',
   ].join('\n');
 }
 
@@ -143,7 +143,7 @@ export function ticketConfirmationMessage(ticket: Ticket, createdAt: Date): stri
     `ساعت ثبت: ${time}\n\n` +
     'با احترام،\n' +
     'درخواست شما به واحد مربوطه ارجاع داده شد و در حال پیگیری است. کارشناسان ما در اولین فرصت پاسخ خواهند داد.\n\n' +
-    '<b>هوش مصنوعی ABRIT</b>'
+    '<b>هوش مصنوعی Abrit</b>'
   );
 }
 

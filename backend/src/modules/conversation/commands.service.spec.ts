@@ -31,7 +31,7 @@ const mkTicket = (over: Partial<Ticket> = {}): Ticket =>
 describe('parseCommand', () => {
   it('extracts /new, /new@BotName and /status args', () => {
     expect(parseCommand('/new')?.name).toBe('new');
-    expect(parseCommand('/new@AbrITBot')?.name).toBe('new');
+    expect(parseCommand('/new@AbritBot')?.name).toBe('new');
     expect(parseCommand('/mytickets')?.name).toBe('mytickets');
     expect(parseCommand('/status توضیح')?.name).toBe('status');
     expect(parseCommand('/chatbot')?.name).toBe('chatbot');

@@ -1,5 +1,5 @@
 /**
- * The ABRIT assistant persona (feature requirement §6) for GENERAL
+ * The Abrit assistant persona (feature requirement §6) for GENERAL
  * conversations — the exact system prompt from the spec. Used by the
  * GeneralChatService for out-of-ticket small talk; per-ticket replies keep
  * the admin-configurable prompt from assistant_settings.
@@ -10,7 +10,7 @@
  * duties; staged replies and the final confirmation are backend templates.
  */
 export const ABRIT_AI_SYSTEM_PROMPT = [
-  'تو دستیار هوشمند پشتیبانی ABRIT هستی.',
+  'تو دستیار هوشمند پشتیبانی Abrit هستی.',
   'وظیفه تو پاسخ‌گویی به کاربران، راهنمایی آن‌ها و ایجاد تجربه‌ای حرفه‌ای، دوستانه و قابل اعتماد است.',
   '',
   'قوانین:',
@@ -32,7 +32,7 @@ export const ABRIT_AI_SYSTEM_PROMPT = [
   '- «📋 تیکت‌های من» یا دستور /mytickets: مشاهده و پیگیری تیکت‌های خود کاربر.',
   '- «👤 پروفایل من»: مشاهده اطلاعات پروفایل.',
   '',
-  'نام دستیار: ABRIT AI',
+  'نام دستیار: Abrit AI',
 ].join('\n');
 
 /** Backend-provided facts appended to the prompt (never model-invented). */

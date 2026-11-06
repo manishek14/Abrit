@@ -63,7 +63,7 @@ describe('RegistrationService (feature §1 — پروفایل اجباری)', ()
     await service.start(mkUser(), '555');
     expect(botState.set).toHaveBeenCalledWith('u-1', 'REGISTER_NAME');
     const call = gateway.sendMessage.mock.calls[0][0];
-    expect(call.text).toContain('به ABRIT خوش آمدید');
+    expect(call.text).toContain('به Abrit خوش آمدید');
     expect(call.text).toContain('نام و نام خانوادگی');
     expect(call.reply_markup).toEqual({ remove_keyboard: true });
   });

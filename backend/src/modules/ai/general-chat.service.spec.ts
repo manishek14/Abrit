@@ -22,13 +22,13 @@ const baseEnv = () => ({
 const settings = (over: Record<string, unknown> = {}) =>
   ({ is_active: true, model: 'test-model', ...over }) as never;
 
-describe('ABRIT persona prompt (feature §6)', () => {
+describe('Abrit persona prompt (feature §6)', () => {
   it('contains the required rules verbatim', () => {
-    expect(ABRIT_AI_SYSTEM_PROMPT).toContain('دستیار هوشمند پشتیبانی ABRIT');
+    expect(ABRIT_AI_SYSTEM_PROMPT).toContain('دستیار هوشمند پشتیبانی Abrit');
     expect(ABRIT_AI_SYSTEM_PROMPT).toContain('زبان پیش‌فرض پاسخ‌گویی فارسی است');
     expect(ABRIT_AI_SYSTEM_PROMPT).toContain('هیچ\u200cگاه شماره تیکت');
     expect(ABRIT_AI_SYSTEM_PROMPT).toContain('به ثبت تیکت راهنمایی کن');
-    expect(ABRIT_AI_SYSTEM_PROMPT).toContain('نام دستیار: ABRIT AI');
+    expect(ABRIT_AI_SYSTEM_PROMPT).toContain('نام دستیار: Abrit AI');
   });
 
   it('context block carries ONLY backend-provided facts', () => {
@@ -85,7 +85,7 @@ describe('GeneralChatService (feature §6 — مکالمات عمومی با Ope
     const req = provider.complete.mock.calls[0][0];
     expect(req.messages).toHaveLength(4);
     expect(req.messages[0].role).toBe('system');
-    expect(req.messages[0].content).toContain('دستیار هوشمند پشتیبانی ABRIT');
+    expect(req.messages[0].content).toContain('دستیار هوشمند پشتیبانی Abrit');
     expect(req.messages[0].content).toContain('CTX');
     expect(req.messages.at(-1)).toEqual({ role: 'user', content: 'سؤال جدید' });
   });

@@ -15,7 +15,7 @@ import { createTestApp } from '../testing/app-builder';
  * PostgreSQL database with only the Telegram transport faked. The AI provider
  * is intentionally disabled (empty key) → the honest fallback reply.
  */
-describe('AbrIT e2e flows (plan §11 scenarios)', () => {
+describe('Abrit e2e flows (plan §11 scenarios)', () => {
   let app: INestApplication;
   let fakeGateway: FakeTelegramGateway;
   let ds: DataSource;
