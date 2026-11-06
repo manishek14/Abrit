@@ -14,14 +14,31 @@ The precise delivery semantics are **at-least-once, single-send guaranteed**:
 - concurrent duplicate *sends* are impossible (atomic claim with a 60 s lease,
   and every outcome write is fenced by a per-claim token — a sender whose lease
   expired mid-send writes 0 rows and aborts);
+- the lease stays ALIVE while a send is in flight: every chunk's network call
+  is preceded by a lease RENEWAL and bounded by `TELEGRAM_SEND_TIMEOUT_MS`
+  (default 30 s < the 60 s lease), so a slow Telegram can no longer let a
+  sender's lease expire mid-request — the sweeper can never re-claim a message
+  that another worker is still sending (review round 5);
 - storage and processing are idempotent — the same update can never produce
   two user messages or two assistant replies;
 - the claim consumes the attempt counter at claim time, so a hard crash
   between a claim and any bookkeeping still burns one of the 5 retries;
-- the ONE residual window is a hard crash between a successful Telegram send
-  of a chunk and its durable progress commit — that single chunk can be
-  re-sent once on recovery (this window exists for EVERY chunk of a multipart
-  send, not just the last; Telegram dedups nothing). Exactly-once delivery is
+- TRANSIENT failures (network errors, 5xx, unknown 4xx) schedule the next
+  attempt with **exponential backoff + jitter** on `messages.next_attempt_at`
+  (~20 s → ~40 s → ~80 s → ~160 s, capped at 10 min) — a 2-minute Telegram
+  outage no longer burns the whole retry budget in the first minute of 15 s
+  sweeps. Telegram's explicit 429 `retry_after` overrides the computed
+  schedule; well-known permanent 400s (chat not found, message text empty,
+  message too long) and 403s stop retrying immediately (review round 5);
+- FAILED messages are never locked away: an operator can re-arm any of them
+  from the panel (`POST /api/tickets/:id/messages/:messageId/retry` — attempts
+  reset, backoff cleared, multi-chunk progress kept) and the delivery resumes
+  immediately (review round 5);
+- the ONE residual window is a hard crash — or a client-side timeout of a
+  request that Telegram actually completes — between the external send of a
+  chunk and its durable progress commit: that single chunk can be re-sent once
+  on recovery (this window exists for EVERY chunk of a multipart send, not
+  just the last; Telegram dedups nothing). Exactly-once delivery is
   impossible across an unacknowledged external API call — claiming otherwise
   would be dishonest.
 
@@ -128,10 +145,15 @@ transaction (transactional-outbox pattern).
   user message is pinned to the ORIGINAL ticket (dedup-first) — a crash
   recovery after an operator closed that ticket can never leave a fresh,
   EMPTY active ticket behind.
-- **Blocked-state recovery** — `is_blocked` is set when Telegram answers 403,
-  and a stale flag self-heals: receiving a fresh, valid update proves the user
-  unblocked the bot, so the flag is cleared and processing resumes (a still
-  blocked reality re-flags on the very next outbound 403).
+- **Blocked-state recovery, race-safe** — `is_blocked` is set when Telegram
+  answers 403, but ONLY when no incoming message newer than the delivery's
+  claim exists (a single conditional UPDATE against `last_seen_at`, review
+  round 5): a late 403 from an old in-flight send can never overwrite the
+  newer reality of a user who already unblocked and messaged again. A stale
+  flag self-heals: receiving a fresh, valid update proves the user unblocked
+  the bot, so the flag is cleared and processing resumes (a still blocked
+  reality re-flags on the very next outbound 403 — but only if no newer
+  activity arrived in the meantime).
 
 ## Data retention
 
@@ -159,12 +181,13 @@ indefinitely and are NOT affected by the purge.
   database until the scale-up path (per-chat advisory locks / shared queue)
   is built; no ordering claim should be made for horizontally-scaled setups.
 - Outbox delivery is at-least-once. Concurrent duplicate sends are impossible
-  (atomic claim + claim-token fencing on every outcome write), but a hard crash
-  between a successful Telegram send of ANY chunk and its durable progress
-  commit can duplicate that one chunk on recovery — the window exists for
-  every chunk of a multipart send, not just the last. Exactly-once across an
-  unacknowledged external API call is impossible; that residual window is the
-  documented price.
+  (atomic claim + claim-token fencing + per-chunk lease renewal + a request
+  timeout strictly below the lease), but a hard crash — or a client-side
+  timeout of a request Telegram actually completes — between the external
+  send of ANY chunk and its durable progress commit can duplicate that one
+  chunk on recovery — the window exists for every chunk of a multipart send,
+  not just the last. Exactly-once across an unacknowledged external API call
+  is impossible; that residual window is the documented price.
 - Context windowing is message-count + character-budget, not exact token count.
 - JWT in localStorage (Bearer) — httpOnly cookies are the hardened upgrade.
 - A message right after `/close` opens a NEW ticket (simple, PDF-compliant

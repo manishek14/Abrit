@@ -138,9 +138,57 @@ describe('Conversation states (review fix: loading / empty / error are separated
       />,
     );
     expect(screen.getByText('Retrying')).toBeInTheDocument();
-    // hovering the badge reveals the failure reason + the auto-retry attempt
+    // hovering the badge reveals the failure reason + the scheduled backoff
     await userEvent.hover(screen.getByText('Retrying'));
-    expect(await screen.findByText(/network down — automatically retrying \(attempt 3 of 5\)\./i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Not delivered: network down The next automatic attempt is scheduled/i),
+    ).toBeInTheDocument();
+  });
+
+  describe('manual retry of a FAILED delivery (review round 5)', () => {
+    const failedMessage = msg('9', {
+      role: 'ADMIN',
+      content: 'پیام ناموفق',
+      delivery_status: 'FAILED',
+      delivery_attempts: 5,
+      error: 'telegram outage',
+    });
+
+    it('renders the Retry action next to the Failed badge and calls onRetryMessage with the message id', async () => {
+      const onRetryMessage = vi.fn();
+      render(
+        <Conversation
+          loading={false}
+          messages={[failedMessage]}
+          onRetryMessage={onRetryMessage}
+        />,
+      );
+      expect(screen.getByText('Failed')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /retry delivery of message 9/i }));
+      expect(onRetryMessage).toHaveBeenCalledTimes(1);
+      expect(onRetryMessage).toHaveBeenCalledWith('9');
+    });
+
+    it('shows NO Retry action when the parent does not wire onRetryMessage', () => {
+      render(<Conversation loading={false} messages={[failedMessage]} />);
+      expect(screen.getByText('Failed')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /retry delivery/i })).not.toBeInTheDocument();
+    });
+
+    it('never offers a Retry on USER messages or SENT/PENDING deliveries', () => {
+      render(
+        <Conversation
+          loading={false}
+          messages={[
+            msg('1', { role: 'USER', content: 'پیام کاربر' }),
+            msg('2', { role: 'ADMIN', content: 'ارسال شد', delivery_status: 'SENT' }),
+            msg('3', { role: 'ADMIN', content: 'در حال ارسال', delivery_status: 'PENDING' }),
+          ]}
+          onRetryMessage={vi.fn()}
+        />,
+      );
+      expect(screen.queryByRole('button', { name: /retry delivery/i })).not.toBeInTheDocument();
+    });
   });
 });
 

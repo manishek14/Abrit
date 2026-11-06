@@ -27,6 +27,7 @@ import {
   useChangeTicketStatus,
   useConversation,
   useLoadOlderMessages,
+  useRetryFailedMessage,
   useSendAdminMessage,
   useTicket,
 } from '../api/hooks';
@@ -56,6 +57,9 @@ export function TicketDetailPage(): JSX.Element {
   const changeStatusMutation = useChangeTicketStatus(ticketId);
   const loadOlderMutation = useLoadOlderMessages(ticketId);
   const sendMessageMutation = useSendAdminMessage(ticketId);
+  // Manual retry of a FAILED delivery (review round 5): the Conversation's
+  // Retry button re-arms the outbox row; realtime events settle the badge.
+  const retryMessageMutation = useRetryFailedMessage(ticketId);
 
   const conversation = conversationQuery.data;
   const messages = conversation?.messages ?? [];
@@ -294,6 +298,7 @@ export function TicketDetailPage(): JSX.Element {
                   error={conversationQuery.isError && messages.length === 0}
                   errorMessage={getApiErrorMessage(conversationQuery.error)}
                   onRetry={() => void conversationQuery.refetch()}
+                  onRetryMessage={(messageId) => retryMessageMutation.mutate(messageId)}
                 />
               </Card>
               <Card styles={{ body: { padding: 16 } }}>

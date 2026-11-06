@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Alert, Button, Skeleton, Tag, Tooltip } from 'antd';
-import { CommentOutlined } from '@ant-design/icons';
+import { CommentOutlined, RedoOutlined } from '@ant-design/icons';
 import type { Message, MessageMeta } from '../types';
 import { EmptyState } from './EmptyState';
 import { formatDateTime, formatTimeShort, shortModelName } from '../utils/format';
@@ -15,6 +15,10 @@ interface ConversationProps {
   errorMessage?: string;
   /** Retry callback rendered with the error state. */
   onRetry?: () => void;
+  /** MANUAL RETRY of a FAILED outbound delivery (review round 5): re-arms the
+   *  message server-side and sends it immediately. Rendered next to the
+   *  Failed badge when provided. */
+  onRetryMessage?: (messageId: string) => void;
 }
 
 const NEAR_BOTTOM_PX = 80;
@@ -51,6 +55,7 @@ export function Conversation({
   error = false,
   errorMessage,
   onRetry,
+  onRetryMessage,
 }: ConversationProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -139,13 +144,19 @@ export function Conversation({
   return (
     <div className="conversation" ref={containerRef} onScroll={handleScroll} role="log" aria-live="polite">
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} />
+        <MessageRow key={message.id} message={message} onRetryMessage={onRetryMessage} />
       ))}
     </div>
   );
 }
 
-function MessageRow({ message }: { message: Message }): JSX.Element {
+function MessageRow({
+  message,
+  onRetryMessage,
+}: {
+  message: Message;
+  onRetryMessage?: (messageId: string) => void;
+}): JSX.Element {
   if (message.role === 'SYSTEM') {
     return (
       <div className="msg-row msg-row--system">
@@ -184,7 +195,7 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
               </Tag>
             </Tooltip>
           )}
-          <DeliveryBadge message={message} />
+          <DeliveryBadge message={message} onRetryMessage={onRetryMessage} />
           <span className="msg-time">{formatTimeShort(message.created_at)}</span>
         </div>
       </div>
@@ -196,10 +207,20 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
  * Outbound delivery status, visible at a glance (review fix):
  *   Sending… → the durable outbox owns the send
  *   Sent     → delivered to Telegram
- *   Retrying → failed, the sweeper retries automatically (attempt info in tooltip)
- *   Failed   → terminal (attempts exhausted / user blocked); error in tooltip
+ *   Retrying → failed, automatic retries continue on the backoff schedule
+ *              (attempt info in tooltip)
+ *   Failed   → no automatic retry left (attempts exhausted / permanent error);
+ *              error in tooltip + a MANUAL Retry action when the parent wires
+ *              onRetryMessage (review round 5 — the operator is never locked
+ *              out of a stuck message, e.g. after a long Telegram outage).
  */
-function DeliveryBadge({ message }: { message: Message }): JSX.Element | null {
+function DeliveryBadge({
+  message,
+  onRetryMessage,
+}: {
+  message: Message;
+  onRetryMessage?: (messageId: string) => void;
+}): JSX.Element | null {
   if (message.delivery_status == null || message.role === 'USER') return null;
 
   if (message.delivery_status === 'PENDING') {
@@ -210,25 +231,36 @@ function DeliveryBadge({ message }: { message: Message }): JSX.Element | null {
   }
   if (message.delivery_status === 'FAILED') {
     const terminal = message.delivery_attempts >= MAX_DELIVERY_ATTEMPTS;
-    if (terminal) {
-      return (
+    const tooltip =
+      message.error != null && message.error !== ''
+        ? `Not delivered: ${message.error}`
+        : 'Delivery to Telegram failed.';
+    return (
+      <>
         <Tooltip
-          title={message.error ? `Not delivered: ${message.error}` : 'Delivery to Telegram failed permanently.'}
+          title={
+            terminal
+              ? `${tooltip} All automatic retries are used up — use Retry to send it again.`
+              : `${tooltip} The next automatic attempt is scheduled (backoff).`
+          }
         >
           <Tag color="error" className="msg-tag">
-            Failed
+            {terminal ? 'Failed' : 'Retrying'}
           </Tag>
         </Tooltip>
-      );
-    }
-    return (
-      <Tooltip
-        title={`${message.error ? `${message.error} — ` : ''}automatically retrying (attempt ${message.delivery_attempts + 1} of ${MAX_DELIVERY_ATTEMPTS}).`}
-      >
-        <Tag color="warning" className="msg-tag">
-          Retrying
-        </Tag>
-      </Tooltip>
+        {onRetryMessage && (
+          <Button
+            size="small"
+            type="link"
+            icon={<RedoOutlined />}
+            className="msg-retry-btn"
+            aria-label={`Retry delivery of message ${message.id}`}
+            onClick={() => onRetryMessage(message.id)}
+          >
+            Retry
+          </Button>
+        )}
+      </>
     );
   }
   return null;

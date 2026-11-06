@@ -222,6 +222,35 @@ export function useSendAdminMessage(ticketId: string) {
   });
 }
 
+/**
+ * MANUAL RETRY of a FAILED delivery (review round 5): re-arms the outbox row
+ * server-side (attempts reset, backoff cleared, multi-chunk progress kept) and
+ * drives an immediate send. The returned PENDING row merges into the
+ * conversation so the badge flips to "Sending…" instantly; the realtime
+ * message:updated event then settles it to SENT/FAILED.
+ */
+export function useRetryFailedMessage(ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (messageId: string): Promise<Message> => {
+      const response = await api.post<{ data: Message }>(
+        `/tickets/${ticketId}/messages/${messageId}/retry`,
+      );
+      return response.data.data;
+    },
+    onSuccess: (message) => {
+      queryClient.setQueryData<ConversationData>(queryKeys.messages(message.ticket_id), (previous) =>
+        previous
+          ? {
+              hasMoreOlder: previous.hasMoreOlder,
+              messages: mergeMessages(previous.messages, [message]),
+            }
+          : { messages: [message], hasMoreOlder: false },
+      );
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Users                                                               */
 /* ------------------------------------------------------------------ */

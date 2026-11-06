@@ -82,6 +82,14 @@
   border-color: rgba(0, 0, 0, 0.06);
 }
 
+/* Manual retry of a FAILED delivery (review round 5): a quiet inline action
+   that matches the badge scale — visible on failure, invisible otherwise. */
+.msg-retry-btn {
+  font-size: 11px;
+  line-height: 16px;
+  padding-inline: 2px;
+}
+
 .msg-time {
   font-size: 11px;
   color: rgba(0, 0, 0, 0.45);
