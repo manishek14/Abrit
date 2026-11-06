@@ -14,7 +14,7 @@ interface SocketContextValue {
 const SocketContext = createContext<SocketContextValue | null>(null);
 
 export function SocketProvider({ children }: { children: ReactNode }): JSX.Element {
-  const { token } = useAuth();
+  const { status } = useAuth();
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
   // Whether this socket instance had at least one successful connection — used
@@ -23,12 +23,13 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
   const hadConnectionRef = useRef(false);
 
   useEffect(() => {
-    if (!token) {
+    if (status !== 'authenticated') {
       setConnected(false);
       return;
     }
 
-    const socket = createSocket(token);
+    // authenticated by the HttpOnly session cookie (round 6) — no token in JS
+    const socket = createSocket();
     hadConnectionRef.current = false;
 
     const invalidateTickets = (): void => {
@@ -105,7 +106,7 @@ export function SocketProvider({ children }: { children: ReactNode }): JSX.Eleme
       socket.disconnect();
       setConnected(false);
     };
-  }, [token, queryClient]);
+  }, [status, queryClient]);
 
   const value = useMemo<SocketContextValue>(() => ({ connected }), [connected]);
 

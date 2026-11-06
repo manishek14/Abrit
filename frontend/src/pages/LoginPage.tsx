@@ -11,7 +11,7 @@ interface LoginFormData {
 }
 
 export function LoginPage(): JSX.Element {
-  const { token, login } = useAuth();
+  const { status, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { message: antdMessage } = AntdApp.useApp();
@@ -25,7 +25,10 @@ export function LoginPage(): JSX.Element {
       ? state.from
       : '/';
 
-  if (token) {
+  if (status === 'loading') {
+    return <div aria-label="Checking session" />;
+  }
+  if (status === 'authenticated') {
     return <Navigate to={returnTo} replace />;
   }
 

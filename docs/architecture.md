@@ -189,7 +189,12 @@ indefinitely and are NOT affected by the purge.
   not just the last. Exactly-once across an unacknowledged external API call
   is impossible; that residual window is the documented price.
 - Context windowing is message-count + character-budget, not exact token count.
-- JWT in localStorage (Bearer) — httpOnly cookies are the hardened upgrade.
+- Panel session = HttpOnly cookie (`abrit_session`, SameSite=Strict, Secure in
+  production, maxAge = JWT_EXPIRES_IN) + double-submit CSRF guard; NO token in
+  JavaScript. Bearer stays supported for API clients/Swagger.
+- Deployment is now self-contained (round 6): backend/frontend Dockerfiles,
+  nginx reverse proxy (REST + WebSocket), `docker-compose.prod.yml`, DB TLS
+  support and the backup/migration/restart runbook — docs/DEPLOYMENT.md.
 - A message right after `/close` opens a NEW ticket (simple, PDF-compliant
   policy; a post-close grace window is the possible refinement).
 - Real Telegram/OpenRouter credentials are not exercised in the automated

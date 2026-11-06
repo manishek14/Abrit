@@ -67,7 +67,7 @@ export function AdminLayout(): JSX.Element {
               <Badge status={connected ? 'success' : 'default'} text={connected ? 'Live' : 'Polling'} />
             </Tooltip>
             <Typography.Text>{admin?.name ?? 'Admin'}</Typography.Text>
-            <Button icon={<LogoutOutlined />} type="text" onClick={logout}>
+            <Button icon={<LogoutOutlined />} type="text" onClick={() => void logout()}>
               Sign out
             </Button>
           </div>

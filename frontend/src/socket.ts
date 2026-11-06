@@ -16,10 +16,15 @@ export function getCurrentTicketId(): string | null {
   return currentTicketId;
 }
 
-/** Creates a socket authenticated with the given access token. */
-export function createSocket(token: string): Socket {
+/**
+ * Creates a socket authenticated with the HttpOnly session cookie (round 6):
+ * the browser attaches `abrit_session` to the handshake automatically, so the
+ * raw token never reaches JavaScript. `withCredentials` is what makes the
+ * cross-origin (dev) handshake carry the cookie.
+ */
+export function createSocket(): Socket {
   return io(WS_BASE_URL, {
-    auth: { token },
+    withCredentials: true,
     transports: ['websocket', 'polling'],
   });
 }

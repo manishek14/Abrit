@@ -145,11 +145,13 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed panel origin(s), comma-separated |
 | `APP_TIMEZONE` | `Asia/Tehran` | Timezone for dashboard "today" stats |
 | `DATABASE_URL` | — (required) | e.g. `postgres://abrit:abrit@127.0.0.1:5432/abrit` |
+| `DATABASE_SSL` / `DATABASE_SSL_CA` | `false` / *(empty)* | TLS for managed PostgreSQL (`true` = encrypt; `CA` (PEM) additionally pins the server cert); `?sslmode=require` in the URL also works |
 | `MIGRATIONS_RUN` | `true` | Run pending migrations on boot |
 | `SEED_DEMO_DATA` | `true` (dev) / `false` (prod) | Seed Persian demo data when the DB is empty — **refused in production** |
 | `BOT_UPDATES_RETENTION_DAYS` | `30` | Purge raw Telegram inbox payloads older than N days (`0` = keep forever); conversation history is never purged |
 | `JWT_SECRET` | — (**required**) | ≥ 16 trimmed chars (whitespace-only and repeated patterns rejected everywhere); ≥ 32 trimmed chars in production |
-| `JWT_EXPIRES_IN` | `8h` | Admin token lifetime |
+| `JWT_EXPIRES_IN` | `8h` | Admin session lifetime — the JWT and the session cookie maxAge share this ONE policy (`45m` / `8h` / `7d`) |
+| `COOKIE_SECURE` | `true` in production | The panel session cookie is HttpOnly + SameSite=Strict; `Secure` defaults on in production (HTTPS mandatory) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@abrit.local` / `Admin1234!` (dev only) | First admin (seeded idempotently, bcrypt-hashed); **must be set explicitly in production and strong: 12+ trimmed chars, ≥ 3 character classes** |
 | `TELEGRAM_MODE` | `polling` | `polling` or `webhook` |
 | `TELEGRAM_BOT_TOKEN` | *(empty)* | **Empty for now** — bot disabled while empty |
@@ -179,12 +181,12 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 
 ```bash
 cd backend
-npm test                # 185 unit tests (no DB, no network)
-npm run test:e2e        # 32 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
+npm test                # 267 unit tests (no DB, no network)
+npm run test:e2e        # 50 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
 npm run test:cov        # coverage
 
 cd ../frontend
-npm test                # 29 component tests (vitest + React Testing Library, jsdom)
+npm test                # 37 component tests (vitest + React Testing Library, jsdom)
 ```
 
 The e2e suite boots the whole application with only the Telegram transport
@@ -261,8 +263,12 @@ real AI replies with zero code changes.
   refuse replies with 409 until reopened.
 - The e2e suite intentionally runs with an **empty OpenRouter key** — no test
   spends quota; AI behavior is covered by fast unit tests with fakes.
-- JWT lives in `localStorage` + Bearer header (simple and adequate for this
-  trial; `httpOnly` cookies are the hardened upgrade).
+- **Panel session = HttpOnly cookie** (round 6): no token in JavaScript,
+  `SameSite=Strict` + `Secure` (prod) + `maxAge = JWT_EXPIRES_IN`, plus a
+  double-submit CSRF guard for cookie-authenticated mutations. Bearer stays
+  supported for API clients/Swagger. See docs/DEPLOYMENT.md §9 for the
+  liveness/readiness split (a dead Telegram bot fails readiness, a temporary
+  OpenRouter outage does not).
 
 ## Production checklist
 
@@ -277,6 +283,16 @@ real AI replies with zero code changes.
 2. Set a strong `CORS_ORIGIN` (the panel's real origin).
 3. Decide the retention window (`BOT_UPDATES_RETENTION_DAYS`, default 30).
 4. Fill `TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY` when you go live — no code
-   changes needed.
+   changes needed. A failed Telegram bootstrap **aborts a production boot**
+   (in development it degrades readiness instead).
+
+## Production deployment
+
+Dockerfiles for both apps, an nginx reverse proxy (REST + WebSocket), a
+production compose file, managed-PostgreSQL TLS support and the full
+runbook — backup/retention, HTTPS, restart behavior, the single-instance
+constraint and the liveness/readiness monitoring split — live in
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** with
+`docker-compose.prod.yml` + `.env.production.example`.
 
 License: UNLICENSED (private trial project).

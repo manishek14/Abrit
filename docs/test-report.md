@@ -1,6 +1,6 @@
 # Test Report
 
-- **Date:** 13–15 Aban 1405 / 4–6 Nov 2026
+- **Date:** 13–16 Aban 1405 / 4–7 Nov 2026
 - **Environment:** Node v24.22.2 · PostgreSQL 16+ (real server, not SQLite) ·
   NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest · socket.io-client (e2e)
 - **CI:** GitHub Actions runs backend build + unit tests, e2e on PostgreSQL 16
@@ -18,22 +18,20 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 32 scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 50 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
 ## Automated results (actual output)
 
 ```
-Unit:      Test Suites: 18 passed, 18 total
-           Tests:       185 passed, 185 total
+Unit:      Test Suites: 24 passed, 24 total
+           Tests:       267 passed, 267 total
 
-E2E:       Test Suites:  1 passed,  1 total
-           Tests:        32 passed, 32 total
+E2E:       Test Suites:  2 passed,  2 total
+           Tests:        50 passed, 50 total
 
-Frontend:  Test Files:   4 passed (4)
-           Tests:        29 passed
-
-Coverage:  ~84% statements (baseline held; all new code is covered by the suites below)
+Frontend:  Test Files:   5 passed (5)
+           Tests:        37 passed (37)
 ```
 
 ## Plan §11 scenario coverage (all automated)
@@ -93,6 +91,13 @@ Coverage:  ~84% statements (baseline held; all new code is covered by the suites
 | multi-part send resume | Chunk 2 of 3 fails → progress `meta.sent_chunks = 1` persists; the retry sends ONLY chunks 2–3 (no duplicated parts); all-chunks-sent crash finishes bookkeeping without a Telegram call | unit (`outbox-dispatcher.service.spec` — 3 scenarios) | ✅ |
 | panel draft integrity | `key={ticketId}` remounts Composer + Conversation on ticket switch — a draft, its idempotency key and scroll state can never leak into another ticket | component (`Composer.test` — key lifecycle via retry assertions) | ✅ |
 | load-older UX | Scroll-anchored prepend (viewport keeps its content position), inline load-older error + retry, muted empty-state copy, operator/customer bubble sides, Sending/Sent/Retrying/Failed badges | component (`Conversation.test`) | ✅ |
+| **round 6 — telegram bootstrap degradation** | A failed Telegram bootstrap (bad token / unreachable API / hung getMe probe) is VISIBLE: lifecycle reported `starting → degraded` into the integration state; development keeps serving, PRODUCTION rethrows (the boot aborts); the getMe probe is bounded so a black-holed network cannot hang the boot | unit (`telegraf.gateway.spec` — 6 bootstrap cases incl. hung probe + webhook-mode failure) + unit (`integration-state.service.spec`) | ✅ |
+| **round 6 — liveness vs readiness** | `/api/health/live` consults NOTHING (a dead DB/bot never restarts the container); `/api/health/ready` fails 503 on a DB outage OR a degraded Telegram, REFLECTS openRouter status without failing on it; legacy `/api/health` keeps readiness semantics | unit (`health.controller.spec` — 7 cases) + e2e (`round6.e2e-spec` — live/ready/legacy public shapes) | ✅ |
+| **round 6 — OpenRouter status reflected** | AI success → `ok`, permanent failure → `degraded` (with reason), no key → `disabled`; a degraded AI NEVER takes the API down | unit (`ai-reply.provider.spec` — lifecycle assertions) | ✅ |
+| **round 6 — HttpOnly session cookie** | Login sets `abrit_session` (HttpOnly, SameSite=Strict) + readable `abrit_csrf`; `/auth/me` restores the session from the cookie ALONE; Bearer still works for API clients; logout clears both cookies and the session stops authenticating | e2e (`round6.e2e-spec` — cookie flags, /auth/me, logout) + unit (`jwt-auth.guard.spec` — cookie fallback/precedence) + unit (`session-cookies.spec` — options, expiry parsing, env validation) | ✅ |
+| **round 6 — CSRF double submit** | Cookie-authenticated mutation WITHOUT the X-CSRF-Token header → 403; with a MISMATCHING token → 403; with the echoing header → 200; GETs and Bearer requests are exempt (never 403) | unit (`csrf.guard.spec` — 9 cases) + e2e (`round6.e2e-spec` — 403/200/exemptions through the real guards) | ✅ |
+| **round 6 — panel holds no token** | The panel never stores a credential in JS: localStorage holds ONLY the display profile; the session is restored via `/auth/me`; logout works even when the server is unreachable | component (`AuthContext.test` — restore/anonymous/login-no-token/logout-offline) | ✅ |
+| **round 6 — DB TLS for managed PostgreSQL** | `DATABASE_SSL=true` encrypts; `DATABASE_SSL_CA` pins the server certificate (rejectUnauthorized); `?sslmode=require` in the URL works; default deployments keep the connection unchanged (no ssl block) | unit (`typeorm.config.spec` — 6 cases) | ✅ |
 
 ## Manual scenarios (PDF §11)
 
