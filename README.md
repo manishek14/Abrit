@@ -179,7 +179,7 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 | `TELEGRAM_MODE` | `polling` | `polling` or `webhook` |
 | `TELEGRAM_BOT_TOKEN` | *(empty)* | Bot disabled while empty; real token verified in the 2026-11-06 smoke test (@ABRIT_Ticket_Bot) |
 | `TELEGRAM_WEBHOOK_URL` / `TELEGRAM_WEBHOOK_SECRET` | *(empty)* | Webhook mode only (secret required in that mode) |
-| `TELEGRAM_ALLOWED_UPDATES` | `message` | Comma-separated update types |
+| `TELEGRAM_ALLOWED_UPDATES` | `message,callback_query` | Comma-separated update types; `callback_query` is required for the /mytickets inline pagination buttons |
 | `OPENROUTER_API_KEY` | *(empty)* | Fixed fallback reply while empty |
 | `OPENROUTER_DEFAULT_MODEL` | `nvidia/nemotron-3-ultra-550b-a55b:free` | Seeded default model — verified with the owner's key (openrouter/auto is region-blocked for it: 403) |
 | `OPENROUTER_TIMEOUT_MS` | `25000` | Per-request abort timeout |
