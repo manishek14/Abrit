@@ -1,5 +1,5 @@
-import { DEPARTMENT_LABELS, formatDepartment, ticketUserLabel, userDisplayName } from './format';
-import type { TelegramUser } from '../types';
+import { describe, expect, it } from 'vitest';
+import { DEPARTMENT_LABELS, formatDepartment } from './format';
 
 describe('formatDepartment (feature round)', () => {
   it('maps every department to its Persian label', () => {
