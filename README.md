@@ -43,9 +43,14 @@ Telegram message arriving over the live websocket while the panel stays open.)*
   panel (prompt, model, on/off) and applies instantly.
 - **Admin panel** — login, dashboard stats, ticket list with filters/search/
   pagination (owner name embedded), ticket conversation (bidi-safe Persian
-  bubbles, delivery badges, model tags, **load-older pagination**), users,
-  assistant settings — all realtime via **Socket.IO** with automatic polling
-  fallback and a full cache resync after every reconnect.
+  bubbles, delivery badges, model tags, newest-first history with
+  **load-older pagination**), **operator replies from the composer** (stored as
+  ADMIN outbox rows with `admin_id`, delivered by the same durable dispatcher,
+  live `Sending… → Sent` badges, locked on closed tickets), a designed empty
+  state, users, assistant settings — all realtime via **Socket.IO** with
+  automatic polling fallback and a full cache resync after every reconnect.
+  Keyboard-accessible rows, responsive tables/drawer and a shared design-token
+  theme round out the panel.
 - **Secure by default** — JWT everywhere except login/health/webhook (webhook
   authenticates with the dedicated Telegram secret, compared in constant time
   and now with structural payload validation), bcrypt-hashed passwords, login
@@ -170,19 +175,25 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 
 ```bash
 cd backend
-npm test                # 146 unit tests (no DB, no network)
-npm run test:e2e        # 24 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
-npm run test:cov        # coverage (~84% statements)
+npm test                # 149 unit tests (no DB, no network)
+npm run test:e2e        # 26 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
+npm run test:cov        # coverage
+
+cd ../frontend
+npm test                # 17 component tests (vitest + React Testing Library, jsdom)
 ```
 
 The e2e suite boots the whole application with only the Telegram transport
 faked — dedup, concurrency, ticket isolation, status rules, auth, sweeper
-crash-recovery, crash **resume**, outbox concurrency/lease, pagination,
+crash-recovery, crash **resume**, outbox concurrency/lease, newest-first
+pagination + load-older, **operator replies (delivery + realtime badges)**,
 input validation, retention and the websocket channel all run against a real
-database. See [docs/test-report.md](docs/test-report.md).
+database. Frontend tests cover the conversation's loading/empty/error states,
+the composer's send/double-click-guard/closed-ticket behavior and the bigint
+id merge/pagination logic. See [docs/test-report.md](docs/test-report.md).
 
 **CI:** every push runs the backend build + unit tests, the e2e suite on a real
-PostgreSQL 16 service and the frontend build —
+PostgreSQL 16 service and the frontend component tests + build —
 [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Demo scenario for the evaluator
@@ -192,9 +203,15 @@ With the default `.env` (both keys empty):
 1. `docker compose up -d db` + start backend & frontend (see Quick start).
 2. Log into the panel — 6 stat cards, seeded Persian demo data, users/tickets/
    conversations are all live.
-3. Open a ticket: watch the bidi-safe conversation, delivery badges
+3. Open a ticket: watch the bidi-safe conversation (long conversations open on
+   the NEWEST messages; "Load older messages" pages history), delivery badges
    (`FAILED` = expected while the bot token is empty), model tags.
-4. While a ticket is open, simulate an incoming Telegram message:
+4. **Reply as an operator**: type in the composer under the transcript and send
+   — the reply appears with a `Support` tag and a live `Sending…` badge. With a
+   real bot token the badge flips to `Sent` and the user receives it on
+   Telegram; with an empty token it honestly ends as `FAILED` after retries.
+   Closed tickets lock the composer until you reopen them.
+5. While a ticket is open, simulate an incoming Telegram message:
 
 ```bash
 curl -X POST http://localhost:3000/api/telegram/webhook \
@@ -207,10 +224,10 @@ curl -X POST http://localhost:3000/api/telegram/webhook \
 ticket is auto-created with a `TKT-…` number, and the honest fallback reply is
 stored as `FAILED` (no bot token). Send the same update again — nothing
 changes (idempotency).
-5. Change a status from the panel → a SYSTEM notification message is stored.
-6. Swagger: <http://localhost:3000/api/docs> (Authorize with the login token).
+6. Change a status from the panel → a SYSTEM notification message is stored.
+7. Swagger: <http://localhost:3000/api/docs> (Authorize with the login token).
 
-With real credentials added, steps 4–5 deliver actual Telegram messages and
+With real credentials added, steps 4–6 deliver actual Telegram messages and
 real AI replies with zero code changes.
 
 ## Design decisions & known limitations
@@ -221,11 +238,15 @@ real AI replies with zero code changes.
 - **At-least-once delivery, single-send guaranteed**: concurrent duplicate
   sends are impossible (atomic claim); only a hard crash between a successful
   Telegram send and the `SENT` update can duplicate one outbound message (rare,
-  documented).
+  documented). Exactly-once is impossible across an unacknowledged external
+  API call — the docs say so explicitly instead of overclaiming.
 - **In-memory per-chat queue**: guarantees user-message ordering in a single
   instance; the multi-instance path (advisory locks / BullMQ) is documented.
-- **No admin replies from the panel yet** (per the trial's core scope; the
-  outbox already supports the `ADMIN` role and the extension path is documented).
+- **Admin replies ship from the panel**: operators answer from the ticket
+  conversation (composer under the transcript). Replies are stored as ADMIN
+  outbox rows with `admin_id`, delivered by the same durable dispatcher, and
+  the panel shows live `Sending… → Sent` delivery badges. Closed tickets
+  refuse replies with 409 until reopened.
 - The e2e suite intentionally runs with an **empty OpenRouter key** — no test
   spends quota; AI behavior is covered by fast unit tests with fakes.
 - JWT lives in `localStorage` + Bearer header (simple and adequate for this

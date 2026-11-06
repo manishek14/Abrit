@@ -2,8 +2,25 @@
 
 ## The one rule this system optimizes for
 
-No message is ever lost and nothing is ever processed twice. Everything else
-(dashboard, panel niceties) is secondary to that guarantee.
+**No message is ever lost** — every inbound update is persisted before
+anything else (inbox `INSERT … ON CONFLICT DO NOTHING`) and every outbound
+message is persisted as `PENDING` before any network attempt (transactional
+outbox). **Nothing is processed twice** in normal operation: each step is
+idempotent (PK/update_id dedup, atomic claims, partial unique indexes), so
+retries and crashed attempts resume instead of duplicating work.
+
+The precise delivery semantics are **at-least-once, single-send guaranteed**:
+
+- concurrent duplicate *sends* are impossible (atomic claim with a 60 s lease);
+- storage and processing are idempotent — the same update can never produce
+  two user messages or two assistant replies;
+- the ONE residual window is a hard crash between a successful Telegram send
+  and the `SENT` update: that single outbound message can be re-sent once
+  (Telegram dedups nothing; the user may see it twice). Exactly-once delivery
+  is impossible across an unacknowledged external API call — claiming
+  otherwise would be dishonest.
+
+Everything else (dashboard, panel niceties) is secondary to that guarantee.
 
 ## The path of a message (9 steps)
 

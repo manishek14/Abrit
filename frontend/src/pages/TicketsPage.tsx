@@ -121,20 +121,12 @@ export function TicketsPage(): JSX.Element {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
+    <Space direction="vertical" size={16} className="ab-page" style={{ width: '100%' }}>
+      <div className="ab-page-header">
         <Typography.Title level={3} style={{ margin: 0 }}>
           Tickets
         </Typography.Title>
-        <Space wrap>
+        <div className="ab-page-header__filters">
           <Select
             allowClear
             placeholder="All statuses"
@@ -151,7 +143,7 @@ export function TicketsPage(): JSX.Element {
             onChange={(event) => onSearchTextChange(event.target.value)}
             onSearch={commitSearch}
           />
-        </Space>
+        </div>
       </div>
 
       {isError && !data && (
@@ -174,6 +166,7 @@ export function TicketsPage(): JSX.Element {
           columns={columns}
           dataSource={data?.data ?? []}
           loading={isLoading || (isFetching && isPlaceholderData)}
+          scroll={{ x: 'max-content' }}
           pagination={{
             current: filters.page,
             pageSize: filters.limit,
@@ -184,7 +177,14 @@ export function TicketsPage(): JSX.Element {
           }}
           onRow={(record) => ({
             onClick: () => navigate(`/tickets/${record.id}`),
-            style: { cursor: 'pointer' },
+            // Full keyboard support (review fix): rows are focusable, Enter
+            // opens, focus gets a visible ring — not a mouse-only interaction.
+            onKeyDown: (event) => {
+              if (event.key === 'Enter') navigate(`/tickets/${record.id}`);
+            },
+            tabIndex: 0,
+            className: 'ab-row-clickable',
+            'aria-label': `Open ticket ${record.ticket_number}`,
           })}
         />
       </Card>

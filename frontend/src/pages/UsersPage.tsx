@@ -91,16 +91,8 @@ export function UsersPage(): JSX.Element {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
+    <Space direction="vertical" size={16} className="ab-page" style={{ width: '100%' }}>
+      <div className="ab-page-header">
         <Typography.Title level={3} style={{ margin: 0 }}>
           Telegram Users
         </Typography.Title>
@@ -138,6 +130,7 @@ export function UsersPage(): JSX.Element {
           columns={columns}
           dataSource={data?.data ?? []}
           loading={isLoading || (isFetching && isPlaceholderData)}
+          scroll={{ x: 'max-content' }}
           pagination={{
             current: filters.page,
             pageSize: filters.limit,
@@ -148,7 +141,14 @@ export function UsersPage(): JSX.Element {
           }}
           onRow={(record) => ({
             onClick: () => setActiveUserId(record.id),
-            style: { cursor: 'pointer' },
+            // Full keyboard support (review fix): rows are focusable, Enter
+            // opens the drawer, focus gets a visible ring.
+            onKeyDown: (event) => {
+              if (event.key === 'Enter') setActiveUserId(record.id);
+            },
+            tabIndex: 0,
+            className: 'ab-row-clickable',
+            'aria-label': `Open user ${record.username ?? record.telegram_id}`,
           })}
         />
       </Card>

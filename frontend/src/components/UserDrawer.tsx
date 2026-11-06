@@ -4,26 +4,35 @@ import {
   Drawer,
   List,
   Space,
-  Spin,
   Tag,
   Tooltip,
   Typography,
   type DescriptionsProps,
 } from 'antd';
+import { FileTextOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useUser } from '../api/hooks';
+import { getApiErrorMessage } from '../api/client';
+import { EmptyState } from './EmptyState';
 import { StatusBadge } from './StatusBadge';
 import { formatDateTime, userDisplayName } from '../utils/format';
+import type { Ticket } from '../types';
 
 interface UserDrawerProps {
   userId: string | null;
   onClose: () => void;
 }
 
-/** Drawer showing a Telegram user's profile and their tickets (newest first). */
+/**
+ * Drawer showing a Telegram user's profile and their tickets (newest first).
+ * Loading / data / empty / error are distinct states (review fix): the error
+ * state offers Retry, the empty state explains itself, and ticket rows are
+ * real interactive elements (Enter + focus ring, not mouse-only). The width
+ * is fluid so it never overflows small screens.
+ */
 export function UserDrawer({ userId, onClose }: UserDrawerProps): JSX.Element {
   const navigate = useNavigate();
-  const { data: user, isLoading } = useUser(userId ?? '');
+  const { data: user, isLoading, isError, error, refetch } = useUser(userId ?? '');
 
   const tickets = user?.tickets ?? [];
 
@@ -50,24 +59,64 @@ export function UserDrawer({ userId, onClose }: UserDrawerProps): JSX.Element {
       ]
     : [];
 
+  const openTicket = (ticket: Ticket): void => {
+    onClose();
+    navigate(`/tickets/${ticket.id}`);
+  };
+
   return (
-    <Drawer open={userId != null} onClose={onClose} width={520} title={user ? userDisplayName(user) : 'User details'}>
-      {isLoading && <Spin style={{ display: 'block', margin: '48px auto' }} />}
+    <Drawer
+      open={userId != null}
+      onClose={onClose}
+      width="min(92vw, 520px)"
+      title={user ? userDisplayName(user) : 'User details'}
+    >
+      {isLoading && (
+        <EmptyState icon={<UserOutlined />} title="Loading user…" description="Fetching profile and tickets." />
+      )}
+
+      {isError && !user && (
+        <EmptyState
+          icon={<UserOutlined />}
+          title="Could not load this user"
+          description={getApiErrorMessage(error)}
+          action={
+            <Space>
+              <Typography.Link onClick={() => void refetch()}>Retry</Typography.Link>
+              <Typography.Text type="secondary">·</Typography.Text>
+              <Typography.Link onClick={onClose}>
+                Close
+              </Typography.Link>
+            </Space>
+          }
+        />
+      )}
+
       {user && (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Descriptions column={1} size="small" bordered items={infoItems} />
           <Typography.Title level={5} style={{ margin: 0 }}>
             Tickets ({tickets.length})
           </Typography.Title>
-          {tickets.length === 0 && <Typography.Text type="secondary">No tickets yet.</Typography.Text>}
+          {tickets.length === 0 && (
+            <EmptyState
+              icon={<FileTextOutlined />}
+              title="No tickets yet"
+              description="This user hasn't opened any ticket — the first message they send to the bot will create one."
+            />
+          )}
           <List
             dataSource={tickets}
             renderItem={(ticket) => (
               <List.Item
-                style={{ cursor: 'pointer', padding: '8px 0' }}
-                onClick={() => {
-                  onClose();
-                  navigate(`/tickets/${ticket.id}`);
+                className="ab-row-clickable"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ticket ${ticket.ticket_number}`}
+                style={{ padding: '8px 0' }}
+                onClick={() => openTicket(ticket)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') openTicket(ticket);
                 }}
               >
                 <List.Item.Meta

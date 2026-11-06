@@ -59,8 +59,8 @@ export function AdminLayout(): JSX.Element {
             paddingInline: 24,
           }}
         >
-          <Typography.Text strong>AbrIT Support Panel</Typography.Text>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Typography.Text strong className="app-header__title">AbrIT Support Panel</Typography.Text>
+          <div className="app-header__actions">
             <Tooltip
               title={connected ? 'Realtime connected — live updates enabled.' : 'Realtime offline — data auto-refreshes via polling.'}
             >

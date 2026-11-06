@@ -1,12 +1,20 @@
 import { useEffect, useRef } from 'react';
-import { Skeleton, Tag, Tooltip } from 'antd';
+import { Alert, Button, Skeleton, Tag, Tooltip } from 'antd';
+import { CommentOutlined } from '@ant-design/icons';
 import type { Message, MessageMeta } from '../types';
+import { EmptyState } from './EmptyState';
 import { formatDateTime, formatTimeShort, shortModelName } from '../utils/format';
 import './conversation.css';
 
 interface ConversationProps {
   messages: Message[];
   loading: boolean;
+  /** True when the initial load failed AND nothing is cached. */
+  error?: boolean;
+  /** Human-readable error text (ignored when there are cached messages). */
+  errorMessage?: string;
+  /** Retry callback rendered with the error state. */
+  onRetry?: () => void;
 }
 
 const NEAR_BOTTOM_PX = 80;
@@ -16,8 +24,18 @@ const NEAR_BOTTOM_PX = 80;
  * Content is bidi-safe (`dir="auto"` + `unicode-bidi: plaintext`) so Persian
  * renders correctly next to Latin text. Auto-scrolls to the newest message
  * only while the user is near the bottom.
+ *
+ * Loading / empty / error states are fully separated (review fix): a skeleton
+ * while the first page loads, a designed empty state when the conversation
+ * has not started, and an inline error with Retry when the initial load fails.
  */
-export function Conversation({ messages, loading }: ConversationProps): JSX.Element {
+export function Conversation({
+  messages,
+  loading,
+  error = false,
+  errorMessage,
+  onRetry,
+}: ConversationProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const didInitialScrollRef = useRef(false);
@@ -43,10 +61,42 @@ export function Conversation({ messages, loading }: ConversationProps): JSX.Elem
     stickToBottomRef.current = distanceFromBottom < NEAR_BOTTOM_PX;
   };
 
+  if (messages.length === 0 && loading) {
+    return (
+      <div className="conversation conversation--loading" aria-busy="true">
+        <Skeleton active title={false} paragraph={{ rows: 6 }} />
+      </div>
+    );
+  }
+
+  if (messages.length === 0 && error) {
+    return (
+      <div className="conversation conversation--loading">
+        <Alert
+          type="error"
+          showIcon
+          message="Failed to load conversation"
+          description={errorMessage}
+          action={
+            onRetry && (
+              <Button size="small" onClick={onRetry}>
+                Retry
+              </Button>
+            )
+          }
+        />
+      </div>
+    );
+  }
+
   if (messages.length === 0) {
     return (
-      <div className="conversation conversation--empty">
-        {loading ? <Skeleton active title={false} paragraph={{ rows: 6 }} /> : 'No messages yet.'}
+      <div className="conversation">
+        <EmptyState
+          icon={<CommentOutlined />}
+          title="Conversation hasn't started"
+          description="Messages from the user will appear here as soon as they write to the bot. Replies you send are delivered to their Telegram chat."
+        />
       </div>
     );
   }
@@ -85,6 +135,7 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
           {message.content}
         </div>
         <div className="msg-meta">
+          {message.role === 'ADMIN' && <Tag className="msg-tag">Support</Tag>}
           {message.role === 'ASSISTANT' && message.meta?.model != null && (
             <Tooltip title={assistantMetaTooltip(message.meta)}>
               <Tag color="geekblue" className="msg-tag">

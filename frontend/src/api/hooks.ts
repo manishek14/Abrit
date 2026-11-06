@@ -13,6 +13,7 @@ import type {
   AssistantSettings,
   ConversationData,
   DashboardStats,
+  Message,
   MessagesPage,
   Paginated,
   TelegramUser,
@@ -92,6 +93,13 @@ export function useTicket(ticketId: string) {
 const OLDER_PAGE_SIZE = 50;
 
 /**
+ * Initial conversation page size — mirrors the backend default. The first
+ * load lands on the conversation's NEWEST slice (review fix); older history
+ * is paged in on demand via ?before=.
+ */
+export const INITIAL_PAGE_SIZE = 50;
+
+/**
  * Conversation query. The merged list + hasMoreOlder live in the query cache;
  * incremental refreshes use `after=<last seen id>` so polls stay cheap.
  * Realtime events (SocketProvider) and polls merge into the same cache,
@@ -109,7 +117,7 @@ export function useConversation(ticketId: string) {
       const lastSeenId =
         cached.messages.length > 0 ? cached.messages[cached.messages.length - 1].id : null;
       const response = await api.get<MessagesPage>(`/tickets/${ticketId}/messages`, {
-        params: lastSeenId ? { after: lastSeenId } : undefined,
+        params: lastSeenId ? { after: lastSeenId } : { limit: INITIAL_PAGE_SIZE },
       });
       const incoming = response.data.data;
       // `after` responses say nothing about older pages — keep the known flag;
@@ -169,6 +177,37 @@ export function useChangeTicketStatus(ticketId: string) {
       // Detail + conversation (a SYSTEM message may be added), list, dashboard.
       void queryClient.invalidateQueries({ queryKey: queryKeys.ticket(ticketId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.messages(ticketId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.ticketsRoot });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+/**
+ * Operator reply (review fix #4): POSTs an ADMIN message; the server stores it
+ * as a PENDING outbox row which the durable dispatcher delivers to Telegram.
+ * The reply is merged into the conversation immediately (PENDING badge) and
+ * realtime message:updated events flip the badge to SENT/FAILED — the hook
+ * also invalidates the ticket list because last_message_at advanced.
+ */
+export function useSendAdminMessage(ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (content: string): Promise<Message> => {
+      const response = await api.post<{ data: Message }>(`/tickets/${ticketId}/messages`, {
+        content,
+      });
+      return response.data.data;
+    },
+    onSuccess: (message) => {
+      queryClient.setQueryData<ConversationData>(queryKeys.messages(message.ticket_id), (previous) =>
+        previous
+          ? {
+              hasMoreOlder: previous.hasMoreOlder,
+              messages: mergeMessages(previous.messages, [message]),
+            }
+          : { messages: [message], hasMoreOlder: false },
+      );
       void queryClient.invalidateQueries({ queryKey: queryKeys.ticketsRoot });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
