@@ -17,21 +17,44 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 62 scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 67 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
-## Automated results (actual output — after the feature round)
+## Automated results (actual output — after the chatbot/profile-gate round)
 
 ```
-Unit:      Test Suites: 33 passed, 33 total
-           Tests:       370 passed, 370 total
+Unit:      Test Suites: 35 passed, 35 total
+           Tests:       406 passed, 406 total
 
 E2E:       Test Suites:  3 passed,  3 total
-           Tests:        62 passed, 62 total
+           Tests:        67 passed, 67 total
 
 Frontend:  Test Files:   6 passed (6)
            Tests:        39 passed (39)
 ```
+
+## Chatbot / profile-gate round (request §1–§9, 6 Nov 2026)
+
+| # | Scenario (request §9) | Where | Status |
+|---|---|---|---|
+| 1 | `/profile` with an INCOMPLETE profile enters the flow directly — NO restriction message | e2e (`profile-flow` scenario 4b) + unit (`commands.service.spec` §1) | ✅ |
+| 2 | Clicking a protected feature (button OR command) without a profile → restriction + «تکمیل پروفایل»-ONLY keyboard | e2e (scenario 4/9.3) + unit (§2 gate tests) | ✅ |
+| 3 | Clicking «تکمیل پروفایل» starts registration | e2e (scenario 4b) | ✅ |
+| 4 | Completing the profile restores the MAIN menu keyboard | e2e (scenario 4b) | ✅ |
+| 5 | `/chatbot` without a profile → restriction + gate keyboard (§4 limit) | e2e (§4 chatbot block) + unit | ✅ |
+| 6 | `/chatbot` with a profile → intro + chatbot-only keyboard + CHAT state | e2e (§4 block) + unit (`chatbot.service.spec`) | ✅ |
+| 7 | A question in chatbot mode → waiting message FIRST, then the answer edited in place | e2e (§4/§5 blocks) + unit (ordering test) | ✅ |
+| 8 | OpenRouter failure/timeout → understandable error, retry works, history untouched | unit (fallback + exception tests) + e2e (empty key = fallback path) | ✅ |
+| 9 | `/help` shows the guide and NEVER calls OpenRouter | e2e (scenario 15 asserts zero edits) + unit | ✅ |
+| 10 | `/chatbot` enters the mode, never the help guide (§7 separation) | e2e (§4 block) + unit | ✅ |
+| 11 | Exiting the chatbot (button or `/cancel`) restores the main menu + clears the state | e2e (§4 block) + unit | ✅ |
+| 12 | Profile card shows ONLY name + phone (username removed, §6) | e2e (scenario 15) + unit | ✅ |
+| 13 | The wizard's description text never reaches OpenRouter (no waiting message, no ASSISTANT leak) | e2e (scenario 5/6) — inherited regression | ✅ |
+| 14 | A gated user cannot bypass via unknown commands or plain text | e2e (scenario 4/9.3 loop) + unit | ✅ |
+| 15 | Two users chatting in parallel: no state/answer mixing (per-chat serialization) | e2e (§5 parallel block) + unit | ✅ |
+| 16 | callback_query updates reach the pipeline (transport bug: they were silently DROPPED) | unit (`telegraf.gateway.spec` forwarding tests) | ✅ |
+| 17 | `editMessageText` works; failures fall back to fresh sends; >4096-char answers split | unit (gateway + `splitForTelegram`) | ✅ |
+| 18 | One update never calls OpenRouter twice (durable `last_update_id` + in-process marker) | unit (`chatbot.service.spec` dedup tests) | ✅ |
 
 ## Feature round (profile + wizard + mytickets + AI chat)
 

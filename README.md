@@ -19,8 +19,8 @@ Telegram message arriving over the live websocket while the panel stays open.)*
 ## Features
 
 - **Telegram bot** — real Telegram Bot API integration (Telegraf): `/start`,
-  `/new`, `/mytickets`, `/profile`, `/status`, `/close`, `/cancel`, `/help`,
-  dynamic reply keyboards, non-text and over-length notices. Polling by
+  `/new`, `/mytickets`, `/profile`, `/status`, `/close`, `/cancel`, `/chatbot`,
+  `/help`, dynamic reply keyboards, non-text and over-length notices. Polling by
   default, webhook mode via env.
 - **Mandatory user profile (feature round)** — a new user must complete a
   two-step registration (نام و نام خانوادگی → شماره همراه؛ the phone step
@@ -37,6 +37,25 @@ Telegram message arriving over the live websocket while the panel stays open.)*
   pagination and per-ticket detail view (`myt:view` / `myt:page` callbacks);
   cross-user access is structurally impossible (a foreign id reads as "not
   found"). Follow-up messages go INTO the selected ticket via 💬 ارسال پیام.
+- **Profile gate (request round §2)** — protected features (ticket wizard,
+  /mytickets, /chatbot, tracking) answer the restriction message plus a
+  «تکمیل پروفایل»-ONLY reply keyboard; the gate is enforced in the router and
+  every command handler, so no command spelling or plain text can bypass it.
+  `/profile` itself is NEVER gated: complete → the card (name + phone only —
+  the Telegram username is not part of the user-facing profile, §6);
+  incomplete → the completion flow starts directly, no restriction message.
+  The card carries a «✏️ ویرایش اطلاعات» entry that re-runs registration.
+- **/chatbot mode (request round §4/§5)** — the ONLY AI entry: `/chatbot`
+  enters a dedicated chat mode (intro + exit-button keyboard, CHAT state).
+  Every plain text in the mode goes to OpenRouter — even menu-button labels —
+  and never becomes a ticket or menu action; real commands and «🔙 بازگشت به
+  منوی اصلی» still work. Each question first shows "Chatbot is working on your
+  request. Please wait a moment." which is then edited IN PLACE into the
+  answer (`editMessageText`, fresh sends as the fallback, 4096-char split);
+  provider failures read as an understandable, retryable error. One update
+  can never call OpenRouter twice (durable `last_update_id` marker). `/help`
+  lists the commands and NEVER touches OpenRouter (§7) — the BotFather command
+  list is synced at boot with the same wording.
 - **ABRIT AI general chat (feature round)** — out-of-ticket plain text goes to
   OpenRouter with the fixed ABRIT AI persona (Persian-first, no invented
   ticket data, guides users to the menus). An OpenRouter outage only degrades
