@@ -18,20 +18,20 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 28 scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 32 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
 ## Automated results (actual output)
 
 ```
 Unit:      Test Suites: 18 passed, 18 total
-           Tests:       162 passed, 162 total
+           Tests:       185 passed, 185 total
 
 E2E:       Test Suites:  1 passed,  1 total
-           Tests:        28 passed, 28 total
+           Tests:        32 passed, 32 total
 
-Frontend:  Test Files:   3 passed (3)
-           Tests:        21 passed
+Frontend:  Test Files:   4 passed (4)
+           Tests:        29 passed
 
 Coverage:  ~84% statements (baseline held; all new code is covered by the suites below)
 ```
@@ -77,6 +77,17 @@ Coverage:  ~84% statements (baseline held; all new code is covered by the suites
 | config security | JWT_SECRET blacklist + production rules (32+ chars, explicit admin password, no demo seed in prod) | unit (`env.spec`) | ✅ |
 | closed-ticket race | Status check + reply insert share ONE transaction under the SAME pessimistic_write lock `changeStatus` takes — a concurrent close can never slip between check and store | unit (`messages.service.spec` — lock asserted, 409/404 paths) + e2e (`ADMIN REPLY` 409) | ✅ |
 | operator-reply idempotency | Retry with the same `client_message_id` → the ORIGINAL message is returned (HTTP 200), exactly one Telegram send; partial unique index on `messages.client_message_id` (role = ADMIN) | e2e (`ADMIN REPLY IDEMPOTENCY`) + unit (pre-check replay + concurrent-race loser) | ✅ |
+| content-bound idempotency key | The SAME key with DIFFERENT content → 409 (never a replay of the old message); an edited draft with a FRESH key is a new message; reverting an edit back to the original text replays the same key | e2e (`ADMIN REPLY IDEMPOTENCY (content-bound)`) + unit (fast path + race loser) + component (`Composer.test` — edit-after-fail / revert) | ✅ |
+| composer mid-flight lock | The textarea is locked while a send is in flight (no mid-flight edits to wipe or misattribute) | component (`Composer.test`) | ✅ |
+| ordering after a failure | While an earlier update of the same chat is unfinished (not DONE/FAILED), the later one stays RECEIVED — no attempts consumed, no message stored; the sweeper finishes the first, THEN the second (reply to message 1 stored before message 2's user row exists) | e2e (`ORDERING GATE`) + unit (`orchestrator.service.spec` — gate blocks, gate args, shapes skip the gate) | ✅ |
+| production secret strength | Whitespace-only JWT secrets (32 spaces) and ADMIN passwords (12 spaces), single-repeated-char and short-block-repeated patterns, and < 3-character-class passwords are all refused in production (length measured on the TRIMMED value) | unit (`env.spec` — blank/whitespace, repeated-pattern, strength-class cases) | ✅ |
+| blocked-state recovery | A fresh message from a user flagged `is_blocked` clears the stale flag and is processed normally (the message proves they unblocked the bot) | e2e (`BLOCKED RECOVERY`) + unit (flag cleared, unblocked users never re-flagged) | ✅ |
+| outbox claim attempts | The claim consumes `delivery_attempts` (a hard crash after claiming burns one retry); a LOST claim consumes nothing | unit (`claimForDelivery` SQL asserted) + e2e (`OUTBOX LEASE` — attempts 0 after the skip, 1 after the reclaimed delivery) | ✅ |
+| claim-token fencing | Every outcome write (chunk progress, SENT, FAILED, deferral) is fenced by the per-claim token: 0-row writes are ignored, and a zombie sender mid-send ABORTS its remaining chunks | unit (`markSent/markFailed/recordChunkSent` fence + `FENCING: losing the claim mid-send aborts`) | ✅ |
+| honest at-least-once window | A hard crash between a chunk's Telegram send and its progress commit re-sends that chunk once on the retry — exactly the documented residual window (this is why progress is committed after EVERY chunk) | unit (`HONEST AT-LEAST-ONCE` — the re-send is asserted and documented) | ✅ |
+| no empty ticket on resume | A crash-retried update whose user message already exists resumes in its ORIGINAL ticket even after an operator closed it — exactly one ticket, reply lands next to its message, no fresh empty ACTIVE ticket | e2e (`CRASH RECOVERY (empty-ticket fix)`) + unit (dedup-first pins the ticket; vanished ticket → recorded error) | ✅ |
+| atomic creation announcement | Ticket + opening SYSTEM announcement commit in ONE transaction; events fire only after the commit; `/new` uses the same path | unit (`tickets.service.spec` — announce in tx, rollback → no events; `commands.service.spec`) | ✅ |
+| user-drawer keyboard access | Ticket rows are REAL buttons: Enter AND Space activate them natively, focusable in sequence, accessible names | component (`UserDrawer.test`) | ✅ |
 | whitespace-only replies | `"   "` and `" \n\t "` are rejected with 400 at the DTO (trim-before-validate), never stored as empty messages | e2e (`ADMIN REPLY` validation) | ✅ |
 | cursor range validation | `before/after` above BIGINT max or zero → 400 (not a DB 500); the exact bigint boundary is accepted | e2e (`CURSOR VALIDATION`) + unit (`message-id-cursor.validator`) | ✅ |
 | multi-part send resume | Chunk 2 of 3 fails → progress `meta.sent_chunks = 1` persists; the retry sends ONLY chunks 2–3 (no duplicated parts); all-chunks-sent crash finishes bookkeeping without a Telegram call | unit (`outbox-dispatcher.service.spec` — 3 scenarios) | ✅ |

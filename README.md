@@ -24,10 +24,14 @@ Telegram message arriving over the live websocket while the panel stays open.)*
 - **No lost messages, resumable processing** — every update is persisted to an
   inbox table first (`INSERT … ON CONFLICT DO NOTHING`), the caller gets an
   instant `200`, and processing happens asynchronously with atomic claims,
-  per-chat ordering and a 15-second sweeper. Processing milestones are
+  per-chat ordering (held after failures by a DB-level gate) and a
+  15-second sweeper. Processing milestones are
   tracked per update (`CLAIMED → USER_SAVED → REPLY_SAVED`), so a crash
   mid-flight **resumes** instead of dropping the half-finished work — a
-  stored user message is never left unanswered.
+  stored user message is never left unanswered, and a retry can never leave
+  a fresh, empty active ticket behind.
+  A user flagged blocked after a Telegram 403 is auto-recovered the moment
+  they message the bot again (the fresh update proves they unblocked us).
 - **Independent ticket memory** — the AI context is built ONLY from the same
   `ticket_id` (query-level guarantee, not a prompt instruction), with role
   mapping, merging and a character budget. One active ticket per user is
@@ -144,9 +148,9 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 | `MIGRATIONS_RUN` | `true` | Run pending migrations on boot |
 | `SEED_DEMO_DATA` | `true` (dev) / `false` (prod) | Seed Persian demo data when the DB is empty — **refused in production** |
 | `BOT_UPDATES_RETENTION_DAYS` | `30` | Purge raw Telegram inbox payloads older than N days (`0` = keep forever); conversation history is never purged |
-| `JWT_SECRET` | — (**required**) | ≥ 16 chars; known/example values are rejected everywhere; ≥ 32 chars in production |
+| `JWT_SECRET` | — (**required**) | ≥ 16 trimmed chars (whitespace-only and repeated patterns rejected everywhere); ≥ 32 trimmed chars in production |
 | `JWT_EXPIRES_IN` | `8h` | Admin token lifetime |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@abrit.local` / `Admin1234!` (dev only) | First admin (seeded idempotently, bcrypt-hashed); **must be set explicitly in production** |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@abrit.local` / `Admin1234!` (dev only) | First admin (seeded idempotently, bcrypt-hashed); **must be set explicitly in production and strong: 12+ trimmed chars, ≥ 3 character classes** |
 | `TELEGRAM_MODE` | `polling` | `polling` or `webhook` |
 | `TELEGRAM_BOT_TOKEN` | *(empty)* | **Empty for now** — bot disabled while empty |
 | `TELEGRAM_WEBHOOK_URL` / `TELEGRAM_WEBHOOK_SECRET` | *(empty)* | Webhook mode only (secret required in that mode) |
@@ -175,12 +179,12 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 
 ```bash
 cd backend
-npm test                # 162 unit tests (no DB, no network)
-npm run test:e2e        # 28 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
+npm test                # 185 unit tests (no DB, no network)
+npm run test:e2e        # 32 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
 npm run test:cov        # coverage
 
 cd ../frontend
-npm test                # 21 component tests (vitest + React Testing Library, jsdom)
+npm test                # 29 component tests (vitest + React Testing Library, jsdom)
 ```
 
 The e2e suite boots the whole application with only the Telegram transport
@@ -239,12 +243,17 @@ real AI replies with zero code changes.
   the same at-least-once guarantees with one source of truth; the upgrade path
   is documented in `docs/architecture.md`.
 - **At-least-once delivery, single-send guaranteed**: concurrent duplicate
-  sends are impossible (atomic claim); only a hard crash between a successful
-  Telegram send and the `SENT` update can duplicate one outbound message (rare,
-  documented). Exactly-once is impossible across an unacknowledged external
-  API call — the docs say so explicitly instead of overclaiming.
-- **In-memory per-chat queue**: guarantees user-message ordering in a single
-  instance; the multi-instance path (advisory locks / BullMQ) is documented.
+  sends are impossible (atomic claim + per-claim token fencing — a sender
+  whose lease expired mid-send writes 0 rows and aborts); only a hard crash
+  between a successful Telegram send of a chunk and its durable progress
+  commit can duplicate that one chunk (documented, per-chunk, honest).
+  Exactly-once is impossible across an unacknowledged external API call — the
+  docs say so explicitly instead of overclaiming.
+- **In-memory per-chat queue + DB ordering gate**: user-message ordering is
+  guaranteed in a single instance — and it HOLDS after a processing failure:
+  while an earlier update of the same chat is not terminal yet, later ones
+  wait (no attempt consumed) until the sweeper finishes the blocker. The
+  multi-instance path (advisory locks / BullMQ) is documented.
 - **Admin replies ship from the panel**: operators answer from the ticket
   conversation (composer under the transcript). Replies are stored as ADMIN
   outbox rows with `admin_id`, delivered by the same durable dispatcher, and
@@ -258,9 +267,12 @@ real AI replies with zero code changes.
 ## Production checklist
 
 1. `NODE_ENV=production` — the app then refuses to boot unless:
-   - `JWT_SECRET` is at least 32 characters and not a known/example value
+   - `JWT_SECRET` is at least 32 characters after trimming, not blank,
+     not a repeated pattern and not a known/example value
      (`openssl rand -hex 32`),
-   - `ADMIN_PASSWORD` is set explicitly (the dev default is rejected),
+   - `ADMIN_PASSWORD` is set explicitly and strong (12+ trimmed characters,
+     at least 3 of lowercase/UPPERCASE/digits/symbols; the dev default is
+     rejected),
    - `SEED_DEMO_DATA=false`.
 2. Set a strong `CORS_ORIGIN` (the panel's real origin).
 3. Decide the retention window (`BOT_UPDATES_RETENTION_DAYS`, default 30).

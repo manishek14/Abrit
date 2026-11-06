@@ -167,7 +167,10 @@ function MessageRow({ message }: { message: Message }): JSX.Element {
 
   return (
     <div className={`msg-row ${isOperatorSide ? 'msg-row--right' : 'msg-row--left'}`}>
-      <div className={`msg-bubble msg-bubble--${message.role.toLowerCase()}`}>
+      {/* Role classes are case-locked to conversation.css (review fix — the
+          previous `toLowerCase()` produced msg-bubble--user while the CSS only
+          defines --USER/--ASSISTANT/--ADMIN, so the bubble colors never applied). */}
+      <div className={`msg-bubble msg-bubble--${message.role}`}>
         <div className="msg-content bidi" dir="auto">
           {message.content}
         </div>

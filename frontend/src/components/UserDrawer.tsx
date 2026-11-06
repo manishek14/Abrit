@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import {
+  Button,
   Descriptions,
   Drawer,
   List,
@@ -108,29 +109,37 @@ export function UserDrawer({ userId, onClose }: UserDrawerProps): JSX.Element {
           <List
             dataSource={tickets}
             renderItem={(ticket) => (
-              <List.Item
-                className="ab-row-clickable"
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ticket ${ticket.ticket_number}`}
-                style={{ padding: '8px 0' }}
-                onClick={() => openTicket(ticket)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') openTicket(ticket);
-                }}
-              >
-                <List.Item.Meta
-                  title={
-                    <Space size={8}>
+              <List.Item style={{ padding: '2px 0' }}>
+                {/* A REAL button (review fix): native Enter AND Space activation,
+                    a proper role for screen readers, and a focus ring — the
+                    previous role="button" on List.Item only handled Enter and
+                    left Space scrolling the drawer. */}
+                <Button
+                  type="text"
+                  block
+                  className="ab-ticket-button"
+                  aria-label={`Open ticket ${ticket.ticket_number}`}
+                  onClick={() => openTicket(ticket)}
+                >
+                  <span className="ab-ticket-button__main">
+                    <span className="ab-ticket-button__titleline">
                       <Typography.Text strong>{ticket.ticket_number}</Typography.Text>
                       <StatusBadge status={ticket.status} />
-                    </Space>
-                  }
-                  description={ticket.subject ?? 'No subject'}
-                />
-                <Tooltip title={formatDateTime(ticket.last_message_at)}>
-                  <Typography.Text type="secondary">{dayjs(ticket.last_message_at).fromNow()}</Typography.Text>
-                </Tooltip>
+                    </span>
+                    <Typography.Text
+                      type="secondary"
+                      className="ab-ticket-button__subject"
+                      ellipsis
+                    >
+                      {ticket.subject ?? 'No subject'}
+                    </Typography.Text>
+                  </span>
+                  <Tooltip title={formatDateTime(ticket.last_message_at)}>
+                    <Typography.Text type="secondary" className="ab-ticket-button__last">
+                      {dayjs(ticket.last_message_at).fromNow()}
+                    </Typography.Text>
+                  </Tooltip>
+                </Button>
               </List.Item>
             )}
           />

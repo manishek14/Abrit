@@ -331,6 +331,53 @@ body {
    control is the link-button in the primary column (see .ab-cell-link). */
 
 /* --------------------------------------------------------------------------
+   User drawer ticket rows (review fix — a11y): the whole row is a REAL
+   button, so Enter AND Space activate it natively and screen readers
+   announce a proper role. Space-between layout keeps ticket info on the
+   left and last-activity on the right inside the single button.
+   -------------------------------------------------------------------------- */
+
+.ab-ticket-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--ab-space-3, 12px);
+  width: 100%;
+  height: auto;
+  padding: 8px 10px;
+  text-align: start;
+}
+
+.ab-ticket-button__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ab-ticket-button__titleline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ab-ticket-button__subject {
+  font-size: 13px;
+  max-width: 320px;
+}
+
+.ab-ticket-button__last {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .ab-ticket-button__subject {
+    max-width: 160px;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Brand & login
    -------------------------------------------------------------------------- */
 

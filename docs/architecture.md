@@ -11,14 +11,19 @@ retries and crashed attempts resume instead of duplicating work.
 
 The precise delivery semantics are **at-least-once, single-send guaranteed**:
 
-- concurrent duplicate *sends* are impossible (atomic claim with a 60 s lease);
+- concurrent duplicate *sends* are impossible (atomic claim with a 60 s lease,
+  and every outcome write is fenced by a per-claim token — a sender whose lease
+  expired mid-send writes 0 rows and aborts);
 - storage and processing are idempotent — the same update can never produce
   two user messages or two assistant replies;
+- the claim consumes the attempt counter at claim time, so a hard crash
+  between a claim and any bookkeeping still burns one of the 5 retries;
 - the ONE residual window is a hard crash between a successful Telegram send
-  and the `SENT` update: that single outbound message can be re-sent once
-  (Telegram dedups nothing; the user may see it twice). Exactly-once delivery
-  is impossible across an unacknowledged external API call — claiming
-  otherwise would be dishonest.
+  of a chunk and its durable progress commit — that single chunk can be
+  re-sent once on recovery (this window exists for EVERY chunk of a multipart
+  send, not just the last; Telegram dedups nothing). Exactly-once delivery is
+  impossible across an unacknowledged external API call — claiming otherwise
+  would be dishonest.
 
 Everything else (dashboard, panel niceties) is secondary to that guarantee.
 
@@ -61,9 +66,12 @@ the half-finished work instead of dropping it.
 |---|---|
 | Before inbox insert | Telegram re-delivers (webhook) or offset not acked (polling) — nothing lost |
 | Inbox stored, not processed | Sweeper re-drives RECEIVED rows |
-| Mid-processing (row PROCESSING) | Sweeper requeues after 2 min, ≤ 3 attempts, then FAILED (last_error preserved) |
-| After USER message stored, before reply | **RESUME**: `addUserMessage` returns the already-stored row, the AI reply step then runs — the user is never left unanswered. An already-stored reply short-circuits the AI call |
-| After outbox insert, before send | Sweeper delivers PENDING rows (5 attempts, `retry_after` honored); a crashed sender's lease (`claimed_at`) expires after 60 s and the row is reclaimed |
+| Mid-processing (row PROCESSING) | Sweeper requeues after 2 min, ≤ 3 attempts, then FAILED (last_error preserved). Later messages of the same chat wait at the ordering gate until the row is terminal |
+| After ticket insert, before announcement | Impossible — both commit in ONE transaction (review fix) |
+| After USER message stored, before reply | **RESUME**: the stored message pins the update to its ORIGINAL ticket (checked BEFORE creating a new one), `addUserMessage` returns the already-stored row, the AI reply step then runs — the user is never left unanswered and no empty active ticket is created. An already-stored reply short-circuits the AI call |
+| After outbox claim, before any bookkeeping | The claim already consumed one of the 5 delivery attempts — crash loops are bounded |
+| After a chunk's Telegram send, before progress commit | At-least-once window: that ONE chunk can be re-sent once on recovery; the next claim continues at the first UNSENT chunk |
+| After outbox insert, before send | Sweeper delivers PENDING rows (5 claims, `retry_after` honored); a crashed sender's lease (`claimed_at`) expires after 60 s and the row is reclaimed — fenced by the claim token so the zombie cannot race the new owner |
 
 Events (websocket broadcast + immediate dispatch) are fired **after the
 transaction commits**, so the panel and the dispatcher never observe a change
@@ -74,6 +82,12 @@ transaction (transactional-outbox pattern).
 
 - **Per-chat ordering** — an in-process `Map<chat_id, Promise>` serializes each
   user's updates so the second message's AI context contains the first reply.
+  **Holds even after a failure (review fix)**: every private-text update checks
+  a DB-level ORDERING GATE (`bot_updates`) before claiming — while an earlier
+  update of the same chat has not reached a terminal state (DONE/FAILED), the
+  later one stays RECEIVED (no attempts consumed) and the sweeper re-drives it
+  once the blocker is finished. The earlier message's reply can therefore
+  never reach the user after the later one's.
   ⚠ **Single-instance only**: the queue lives in process memory — with two or
   more backend instances behind a load balancer, updates of the same chat may
   land on different instances and their relative processing order is NOT
@@ -90,17 +104,34 @@ transaction (transactional-outbox pattern).
   `claimForDelivery`: `UPDATE messages SET claimed_at = now() WHERE …` with a
   60 s lease; the immediate dispatcher and the sweeper can never deliver the
   same message twice, even concurrently.
-- **Multi-part sends are resumable** — after every successfully delivered
-  chunk the progress is committed to `messages.meta.sent_chunks`; a retry
-  (sweeper or crash recovery) continues at the first UNSENT chunk, so the
-  user never receives an already-delivered part twice.
+- **Multi-part sends are resumable, fenced** — after every successfully
+  delivered chunk the progress is committed to `messages.meta.sent_chunks`;
+  a retry (sweeper or crash recovery) continues at the first UNSENT chunk. All
+  progress/SENT/FAILED writes are fenced by the claim token, so a zombie
+  sender whose lease expired aborts instead of racing the new owner. Honest
+  at-least-once: a hard crash between a chunk's Telegram send and its progress
+  commit can duplicate that ONE chunk (see the residual window above).
 - **Operator replies are idempotent end-to-end** — the panel generates a
-  `client_message_id` per draft-send and reuses it on retry; a partial unique
-  index (`role = 'ADMIN'`) turns a duplicate insert into a replay of the
-  ORIGINAL message. The status check and the insert share one transaction
-  holding the ticket row's pessimistic_write lock (the SAME lock
-  `changeStatus` takes), so a reply can never slip into a ticket that closed
-  concurrently.
+  `client_message_id` per draft-send, BOUND TO THE EXACT CONTENT of that
+  attempt: retrying an unchanged draft reuses the key (a lost HTTP response
+  replays the ORIGINAL message — the user never receives the same reply
+  twice), while an edited draft automatically becomes a NEW send with a
+  fresh key. Reusing a key with different content is rejected with 409
+  instead of answering with the old message. A partial unique index
+  (`role = 'ADMIN'`) enforces the uniqueness at the storage layer. The status
+  check and the insert share one transaction holding the ticket row's
+  pessimistic_write lock (the SAME lock `changeStatus` takes), so a reply can
+  never slip into a ticket that closed concurrently.
+- **Ticket creation is atomic with its announcement** — a new ticket and its
+  opening SYSTEM message are written in ONE transaction, so a crash can never
+  leave a ticket without its announcement. And a retry of an already-stored
+  user message is pinned to the ORIGINAL ticket (dedup-first) — a crash
+  recovery after an operator closed that ticket can never leave a fresh,
+  EMPTY active ticket behind.
+- **Blocked-state recovery** — `is_blocked` is set when Telegram answers 403,
+  and a stale flag self-heals: receiving a fresh, valid update proves the user
+  unblocked the bot, so the flag is cleared and processing resumes (a still
+  blocked reality re-flags on the very next outbound 403).
 
 ## Data retention
 
@@ -127,10 +158,13 @@ indefinitely and are NOT affected by the purge.
   queue is in-memory (single instance). Run exactly one backend instance per
   database until the scale-up path (per-chat advisory locks / shared queue)
   is built; no ordering claim should be made for horizontally-scaled setups.
-- Outbox delivery is at-least-once ONLY across a hard crash between a successful
-  Telegram send (of the LAST chunk) and the SENT update (concurrent duplicate
-  sends are impossible — atomic claim; per-chunk progress prevents multipart
-  duplication); that rare crash window can duplicate one message.
+- Outbox delivery is at-least-once. Concurrent duplicate sends are impossible
+  (atomic claim + claim-token fencing on every outcome write), but a hard crash
+  between a successful Telegram send of ANY chunk and its durable progress
+  commit can duplicate that one chunk on recovery — the window exists for
+  every chunk of a multipart send, not just the last. Exactly-once across an
+  unacknowledged external API call is impossible; that residual window is the
+  documented price.
 - Context windowing is message-count + character-budget, not exact token count.
 - JWT in localStorage (Bearer) — httpOnly cookies are the hardened upgrade.
 - A message right after `/close` opens a NEW ticket (simple, PDF-compliant
