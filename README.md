@@ -75,6 +75,18 @@ power both the outbox dispatcher and the panel's websocket updates. See
 
 ## Quick start (development)
 
+**One command** — creates `.env` from the template (random JWT secret), starts
+PostgreSQL (`docker compose up -d db` when no server is reachable), builds
+backend + frontend once and boots the production build of both:
+
+```bash
+./demo.sh
+# admin panel → http://localhost:5173   (login: admin@abrit.local / Admin1234!)
+# API + docs  → http://localhost:3000/api (swagger: /api/docs)
+```
+
+Or step by step:
+
 ```bash
 cp .env.example .env          # set JWT_SECRET; Telegram/OpenRouter keys stay empty for now
 docker compose up -d db       # PostgreSQL 16 on :5432 (db-test for e2e on :5433)
