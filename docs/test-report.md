@@ -1,16 +1,15 @@
 # Test Report
 
-- **Date:** 13–16 Aban 1405 / 4–7 Nov 2026
+- **Date:** 13–17 Aban 1405 / 4–8 Nov 2026
 - **Environment:** Node v24.22.2 · PostgreSQL 16+ (real server, not SQLite) ·
   NestJS 11 · TypeORM 0.3 · Jest 29 + ts-jest + Supertest · socket.io-client (e2e)
 - **CI:** GitHub Actions runs backend build + unit tests, e2e on PostgreSQL 16
   and the frontend component tests + build on every push
   (`.github/workflows/ci.yml`)
-- **Telegram/OpenRouter credentials:** intentionally empty during this test run
-  (per the project owner's instruction). No test performs any network call to
-  Telegram or OpenRouter — delivery is faked, AI is either disabled or the
-  honest fallback. Real-credential smoke testing remains to be done by the
-  owner (see "Manual scenarios").
+- **Telegram/OpenRouter credentials:** unit/e2e suites still run with EMPTY
+  credentials (faked delivery, AI disabled/fallback — no network calls). A
+  REAL-credential smoke test was run on 6 Nov 2026 (@ABRIT_Ticket_Bot + the
+  owner's OpenRouter key) — see "Real-credential smoke test" below.
 
 ## Commands
 
@@ -25,7 +24,7 @@ npm run test:e2e    # 50 scenarios, REAL PostgreSQL (database abrit_test)
 
 ```
 Unit:      Test Suites: 24 passed, 24 total
-           Tests:       267 passed, 267 total
+           Tests:       272 passed, 272 total
 
 E2E:       Test Suites:  2 passed,  2 total
            Tests:        50 passed, 50 total
@@ -98,6 +97,8 @@ Frontend:  Test Files:   5 passed (5)
 | **round 6 — CSRF double submit** | Cookie-authenticated mutation WITHOUT the X-CSRF-Token header → 403; with a MISMATCHING token → 403; with the echoing header → 200; GETs and Bearer requests are exempt (never 403) | unit (`csrf.guard.spec` — 9 cases) + e2e (`round6.e2e-spec` — 403/200/exemptions through the real guards) | ✅ |
 | **round 6 — panel holds no token** | The panel never stores a credential in JS: localStorage holds ONLY the display profile; the session is restored via `/auth/me`; logout works even when the server is unreachable | component (`AuthContext.test` — restore/anonymous/login-no-token/logout-offline) | ✅ |
 | **round 6 — DB TLS for managed PostgreSQL** | `DATABASE_SSL=true` encrypts; `DATABASE_SSL_CA` pins the server certificate (rejectUnauthorized); `?sslmode=require` in the URL works; default deployments keep the connection unchanged (no ssl block) | unit (`typeorm.config.spec` — 6 cases) | ✅ |
+| **smoke — real long-polling launch** | telegraf's `launch()` in polling mode resolves only when polling STOPS (telegraf#1344): it must be fired, not awaited — awaiting it froze `onApplicationBootstrap` forever and the HTTP server never bound with a REAL token (invisible to tests that stub `launch()` as resolving). A never-resolving launch must not block the boot; an async 401/409 rejection degrades the integration; PRODUCTION exits (visible crash-loop over a silent dead bot) | unit (`telegraf.gateway.spec` — "real long-polling launch", 4 cases) | ✅ |
+| **smoke — OpenRouter initial state** | With the key CONFIGURED the integration must report `starting` (configured, unproven), not the misleading `disabled` (the state service's initial value) | unit (`ai-reply.provider.spec`) | ✅ |
 
 ## Manual scenarios (PDF §11)
 
@@ -113,9 +114,32 @@ Frontend:  Test Files:   5 passed (5)
 Screenshots of the real run: `docs/screenshots/*.png` — including a Telegram
 message appearing live in the open ticket over the websocket.
 
+## Real-credential smoke test (6 Nov 2026, @ABRIT_Ticket_Bot)
+
+Run with the owner's real Telegram bot token and OpenRouter key (filled in
+`.env` only — never committed; tokens stay out of the repo).
+
+| Check | Result |
+|---|---|
+| `getMe()` with the real token | ✅ `@ABRIT_Ticket_Bot` (ABRIT Support) |
+| Polling bootstrap (`onApplicationBootstrap`) | ✅ after the launch fix: `Polling started`, HTTP bound, readiness `telegram: ok` — **before the fix the whole bootstrap froze and the API never listened** (P0 found only by this smoke test) |
+| Webhook ingestion (secret-protected) → inbox → ticket | ✅ TKT-10004 created from a synthetic update, inbox `DONE / REPLY_SAVED` on attempt 1 |
+| Real OpenRouter reply | ✅ `nvidia/nemotron-3-ultra-550b-a55b:free`, 358 tokens (175 prompt + 183 completion), 5.1 s latency, honest Persian reply; integration state flipped `starting → ok` |
+| Outbox → real Telegram send | ✅ real API answered `400 Bad Request: chat not found` for the synthetic chat — classified PERMANENT, ONE attempt, terminal FAILED (no wasted retries) |
+| Panel API with HttpOnly session | ✅ login → `abrit_session` cookie → `/auth/me` restore → tickets/messages with real AI meta; live OpenRouter model list in Settings |
+| OpenRouter `openrouter/auto` (former default) | ❌ 403 "not available in your region" for the owner's key → default model changed to the verified free model |
+| Google models (`gemma-4-*`) | ❌ 400 "User location is not supported" for this key/region — avoid |
+| Key limits | free tier: $50 key budget, 50 free-model requests/day; **key expires 2026-11-13 — renew it before then** |
+
+What remains manual: a REAL user chatting with the bot on Telegram (the send
+path was verified with a real API error for a synthetic chat; a real chat
+requires a human to write to `@ABRIT_Ticket_Bot`).
+
 ## What still needs real credentials
 
-1. Real Telegram bot end-to-end (polling, actual chat).
-2. Real OpenRouter multi-turn conversation quality check.
-Both activate purely by filling `TELEGRAM_BOT_TOKEN` / `OPENROUTER_API_KEY`
-in `.env` — no code changes.
+1. ~~Real Telegram bot end-to-end (polling, actual chat).~~ — polling, webhook
+   ingestion, outbox and a REAL Telegram API error path verified in the smoke
+   test; only a human↔bot conversation remains manual.
+2. ~~Real OpenRouter multi-turn conversation quality check.~~ — single-turn
+   real reply verified (quality, latency, tokens); a longer multi-turn
+   conversation is best done live by the owner.

@@ -154,11 +154,11 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 | `COOKIE_SECURE` | `true` in production | The panel session cookie is HttpOnly + SameSite=Strict; `Secure` defaults on in production (HTTPS mandatory) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `admin@abrit.local` / `Admin1234!` (dev only) | First admin (seeded idempotently, bcrypt-hashed); **must be set explicitly in production and strong: 12+ trimmed chars, ≥ 3 character classes** |
 | `TELEGRAM_MODE` | `polling` | `polling` or `webhook` |
-| `TELEGRAM_BOT_TOKEN` | *(empty)* | **Empty for now** — bot disabled while empty |
+| `TELEGRAM_BOT_TOKEN` | *(empty)* | Bot disabled while empty; real token verified in the 2026-11-06 smoke test (@ABRIT_Ticket_Bot) |
 | `TELEGRAM_WEBHOOK_URL` / `TELEGRAM_WEBHOOK_SECRET` | *(empty)* | Webhook mode only (secret required in that mode) |
 | `TELEGRAM_ALLOWED_UPDATES` | `message` | Comma-separated update types |
-| `OPENROUTER_API_KEY` | *(empty)* | **Empty for now** — fixed fallback reply while empty |
-| `OPENROUTER_DEFAULT_MODEL` | `openrouter/auto` | Seeded default model |
+| `OPENROUTER_API_KEY` | *(empty)* | Fixed fallback reply while empty |
+| `OPENROUTER_DEFAULT_MODEL` | `nvidia/nemotron-3-ultra-550b-a55b:free` | Seeded default model — verified with the owner's key (openrouter/auto is region-blocked for it: 403) |
 | `OPENROUTER_TIMEOUT_MS` | `25000` | Per-request abort timeout |
 | `AI_CONTEXT_MAX_MESSAGES` | `20` | Context window (messages) |
 | `AI_MAX_CONCURRENCY` | `3` | Global AI concurrency cap |
@@ -175,13 +175,14 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
    and switch `TELEGRAM_MODE=webhook`.
 2. **OpenRouter**: create a key at <https://openrouter.ai/keys> → put it in
    `OPENROUTER_API_KEY` → restart. Pick a model in the panel
-   (Settings → Assistant) or leave `openrouter/auto`.
+   (Settings → Assistant — the live OpenRouter model list) or keep the
+   verified default.
 
 ## Running the tests
 
 ```bash
 cd backend
-npm test                # 267 unit tests (no DB, no network)
+npm test                # 272 unit tests (no DB, no network)
 npm run test:e2e        # 50 e2e scenarios on REAL PostgreSQL (db abrit_test, or E2E_DATABASE_URL)
 npm run test:cov        # coverage
 
