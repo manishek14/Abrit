@@ -23,7 +23,7 @@ npm run test:e2e    # 67 scenarios, REAL PostgreSQL (database abrit_test)
 ## Automated results (actual output — after the chatbot/profile-gate round)
 
 ```
-Unit:      Test Suites: 35 passed, 35 total
+Unit:      Test Suites: 34 passed, 34 total
            Tests:       406 passed, 406 total
 
 E2E:       Test Suites:  3 passed,  3 total
