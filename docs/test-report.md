@@ -17,21 +17,39 @@
 cd backend
 npm test            # unit
 npm run test:cov    # unit + coverage
-npm run test:e2e    # 50 scenarios, REAL PostgreSQL (database abrit_test)
+npm run test:e2e    # 62 scenarios, REAL PostgreSQL (database abrit_test)
 ```
 
-## Automated results (actual output)
+## Automated results (actual output — after the feature round)
 
 ```
-Unit:      Test Suites: 24 passed, 24 total
-           Tests:       272 passed, 272 total
+Unit:      Test Suites: 33 passed, 33 total
+           Tests:       370 passed, 370 total
 
-E2E:       Test Suites:  2 passed,  2 total
-           Tests:        50 passed, 50 total
+E2E:       Test Suites:  3 passed,  3 total
+           Tests:        62 passed, 62 total
 
-Frontend:  Test Files:   5 passed (5)
-           Tests:        37 passed (37)
+Frontend:  Test Files:   6 passed (6)
+           Tests:        39 passed (39)
 ```
+
+## Feature round (profile + wizard + mytickets + AI chat)
+
+| # | Scenario (spec §9) | Where | Status |
+|---|---|---|---|
+| 1 | New user `/start` → name step → phone keyboard (`request_contact`) → profile completed & persisted | e2e (`profile-flow` scenario 1/2) | ✅ |
+| 2 | Returning registered user skips registration | e2e (gating scenarios) + unit (`users.service.spec`) | ✅ |
+| 3 | Users WITHOUT a profile are locked out of /new, /mytickets and general chat | e2e (scenario 4/9.3) | ✅ |
+| 4–6 | Wizard عنوان → دپارتمان (keyboard-only) → متن → confirmation with the REAL Jalali timestamp + department persisted | e2e (scenario 5/6, 9.9) + unit (`ticket-flow.service.spec`) | ✅ |
+| 7 | `/mytickets` lists ONLY the caller tickets (number/title/department/status) + empty state | e2e (scenario 7/8) | ✅ |
+| 8 | Inline pagination (7 tickets → 2 pages) + per-ticket view callback | e2e (scenario 9) + unit (`keyboards.spec`) | ✅ |
+| 9 | Cross-user access: a foreign ticket id reads as "دسترسی ندارید" — never the data | e2e (scenario 9) + unit (`mytickets.service.spec`) | ✅ |
+| 10 | Cancel at EVERY wizard step clears the state and restores the menu | e2e (scenario 10) + unit | ✅ |
+| 11 | Plain text → OpenRouter general chat (fallback when the key is empty/disabled), NO auto-ticket | e2e (scenario 11/12/13, 14-old) + unit (`general-chat.service.spec`) | ✅ |
+| 12 | Wizard description NEVER leaks into the AI handler (the §4 hard rule) | e2e (scenario 5/6) + unit (`flow-router.service.spec`) | ✅ |
+| 13 | DB failure during finalize: NO success message, state kept, retry succeeds without retyping | e2e (scenario 14 — table rename) + unit | ✅ |
+| 14 | Jalali date correctness (Nowruz anchors + the spec's own ۱۴۰۵/۰۸/۱۵ sample) | unit (`jalali.spec`) | ✅ |
+| 15 | Keyboard factory: menus, department labels, phone contact button, inline nav | unit (`keyboards.spec`) + e2e (scenario 15) | ✅ |
 
 ## Plan §11 scenario coverage (all automated)
 

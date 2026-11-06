@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Alert, Button, Card, Input, Select, Space, Table, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Input, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import dayjs from 'dayjs';
 import { useTickets } from '../api/hooks';
 import { getApiErrorMessage } from '../api/client';
 import { StatusBadge, TICKET_STATUS_OPTIONS } from '../components/StatusBadge';
-import { formatDateTime, ticketUserLabel } from '../utils/format';
-import type { TicketListItem, TicketStatus, TicketsFilters } from '../types';
+import { DEPARTMENT_LABELS, formatDateTime, ticketUserLabel } from '../utils/format';
+import type { TicketDepartment, TicketListItem, TicketStatus, TicketsFilters } from '../types';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 400;
@@ -109,6 +109,19 @@ export function TicketsPage(): JSX.Element {
       ellipsis: true,
       render: (value: string | null) =>
         value ? <span>{value}</span> : <Typography.Text type="secondary" italic>No subject</Typography.Text>,
+    },
+    {
+      title: 'Department',
+      dataIndex: 'department',
+      key: 'department',
+      width: 130,
+      ellipsis: true,
+      render: (value: TicketDepartment | null) =>
+        value ? (
+          <Tag>{DEPARTMENT_LABELS[value]}</Tag>
+        ) : (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ),
     },
     {
       title: 'User',

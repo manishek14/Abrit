@@ -5,6 +5,8 @@
 
 export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'CLOSED';
 
+export type TicketDepartment = 'FINANCE' | 'SUPPORT' | 'TECHNICAL' | 'SUGGESTIONS';
+
 export type MessageRole = 'USER' | 'ASSISTANT' | 'ADMIN' | 'SYSTEM';
 
 export type DeliveryStatus = 'PENDING' | 'SENT' | 'FAILED';
@@ -44,6 +46,10 @@ export interface TelegramUser {
   last_name: string | null;
   language_code: string | null;
   is_blocked: boolean;
+  /** Mandatory-registration profile (feature round) — null until completed. */
+  full_name: string | null;
+  phone: string | null;
+  profile_completed_at: string | null;
   created_at: string;
   updated_at: string;
   last_seen_at: string | null;
@@ -61,6 +67,8 @@ export interface Ticket {
   user_id: string;
   status: TicketStatus;
   subject: string | null;
+  /** Department chosen in the bot's ticket wizard; NULL for legacy rows. */
+  department: TicketDepartment | null;
   created_at: string;
   updated_at: string;
   last_message_at: string;

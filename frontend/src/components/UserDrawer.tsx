@@ -44,6 +44,17 @@ export function UserDrawer({ userId, onClose }: UserDrawerProps): JSX.Element {
           label: 'Telegram ID',
           children: <Typography.Text copyable={{ text: user.telegram_id }}>{user.telegram_id}</Typography.Text>,
         },
+        {
+          key: 'profile',
+          label: 'Profile',
+          children: user.profile_completed_at ? (
+            <Tag color="success">تکمیل شده</Tag>
+          ) : (
+            <Tag color="warning">تکمیل نشده</Tag>
+          ),
+        },
+        { key: 'full_name', label: 'نام و نام خانوادگی', children: user.full_name ?? '—' },
+        { key: 'phone', label: 'شماره همراه', children: user.phone ?? '—' },
         { key: 'username', label: 'Username', children: user.username ? `@${user.username}` : '—' },
         { key: 'language', label: 'Language', children: user.language_code ?? '—' },
         {

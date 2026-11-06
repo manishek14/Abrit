@@ -37,7 +37,7 @@ import { setCurrentTicketId } from '../socket';
 import { StatusBadge, TICKET_STATUS_OPTIONS, statusLabel } from '../components/StatusBadge';
 import { Conversation } from '../components/Conversation';
 import { Composer } from '../components/Composer';
-import { formatDateTime, userDisplayName } from '../utils/format';
+import { DEPARTMENT_LABELS, formatDateTime, userDisplayName } from '../utils/format';
 import type { TicketStatus } from '../types';
 
 /**
@@ -159,6 +159,15 @@ export function TicketDetailPage(): JSX.Element {
   const detailItems: DescriptionsProps['items'] = ticket
     ? [
         { key: 'status', label: 'Status', children: <StatusBadge status={ticket.status} /> },
+        {
+          key: 'department',
+          label: 'Department',
+          children: ticket.department ? (
+            <Tag>{DEPARTMENT_LABELS[ticket.department]}</Tag>
+          ) : (
+            <Typography.Text type="secondary">—</Typography.Text>
+          ),
+        },
         { key: 'created', label: 'Created', children: formatDateTime(ticket.created_at) },
         {
           key: 'last-activity',

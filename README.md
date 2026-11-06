@@ -19,8 +19,31 @@ Telegram message arriving over the live websocket while the panel stays open.)*
 ## Features
 
 - **Telegram bot** — real Telegram Bot API integration (Telegraf): `/start`,
-  `/new`, `/status`, `/close`, `/help`, plain-text ticketing, non-text and
-  over-length notices. Polling by default, webhook mode via env.
+  `/new`, `/mytickets`, `/profile`, `/status`, `/close`, `/cancel`, `/help`,
+  dynamic reply keyboards, non-text and over-length notices. Polling by
+  default, webhook mode via env.
+- **Mandatory user profile (feature round)** — a new user must complete a
+  two-step registration (نام و نام خانوادگی → شماره همراه؛ the phone step
+  offers a `request_contact` button and verifies the contact OWNER) before
+  any main feature unlocks. The profile is persisted, so returning users are
+  never asked twice.
+- **Staged ticket wizard (feature round)** — ثبت تیکت follows a strict flow:
+  عنوان → دپارتمان (custom reply keyboard; free text can NEVER pick a
+  department) → متن → atomic finalization (ticket + first message + SYSTEM
+  announcement in ONE transaction) → a Persian confirmation with the REAL
+  Jalali timestamp (Asia/Tehran, 24h, Persian digits). Cancel works at every
+  step; a DB failure keeps the wizard state so nothing the user typed is lost.
+- **/mytickets (feature round)** — the user's OWN tickets only, with inline
+  pagination and per-ticket detail view (`myt:view` / `myt:page` callbacks);
+  cross-user access is structurally impossible (a foreign id reads as "not
+  found"). Follow-up messages go INTO the selected ticket via 💬 ارسال پیام.
+- **ABRIT AI general chat (feature round)** — out-of-ticket plain text goes to
+  OpenRouter with the fixed ABRIT AI persona (Persian-first, no invented
+  ticket data, guides users to the menus). An OpenRouter outage only degrades
+  the chat — registration, the wizard and /mytickets keep working. The state
+  machine lives on `telegram_users.bot_state` (DB-backed, 3h TTL, strict
+  routing: a wizard step's text is consumed by the wizard and NEVER reaches
+  the AI handler).
 - **No lost messages, resumable processing** — every update is persisted to an
   inbox table first (`INSERT … ON CONFLICT DO NOTHING`), the caller gets an
   instant `200`, and processing happens asynchronously with atomic claims,
@@ -169,8 +192,10 @@ cd ../frontend && npm install && npm run dev     # پنل مدیریت: http://l
 
 1. **Telegram bot**: talk to [@BotFather](https://t.me/BotFather) ��� `/newbot`
    → copy the token into `TELEGRAM_BOT_TOKEN` → restart. Then in the bot chat:
-   `/start`, write a problem (a ticket is created), continue the conversation,
-   `/status`, `/close`. Optionally run
+   `/start` (completes the mandatory profile), then «🎫 ثبت تیکت جدید» and
+   follow the wizard (title → department → description), check «📋 تیکت‌های من»
+   or `/mytickets`, ask general questions in plain text (ABRIT AI), `/status`,
+   `/close`. Optionally run
    `curl -F "url=https://YOUR HOST/api/telegram/webhook" -F "secret_token=$TELEGRAM_WEBHOOK_SECRET" https://api.telegram.org/bot<TOKEN>/setWebhook`
    and switch `TELEGRAM_MODE=webhook`.
 2. **OpenRouter**: create a key at <https://openrouter.ai/keys> → put it in

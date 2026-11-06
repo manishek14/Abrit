@@ -1,5 +1,18 @@
 import dayjs from 'dayjs';
-import type { TelegramUser } from '../types';
+import type { TelegramUser, TicketDepartment } from '../types';
+
+/** Persian labels for the ticket departments (mirrors the bot's keyboard). */
+export const DEPARTMENT_LABELS: Record<TicketDepartment, string> = {
+  FINANCE: 'مالی',
+  SUPPORT: 'پشتیبانی',
+  TECHNICAL: 'فنی',
+  SUGGESTIONS: 'پیشنهادات و انتقادات',
+};
+
+/** Department label or '—' for legacy rows without one. */
+export function formatDepartment(department: TicketDepartment | null | undefined): string {
+  return department ? DEPARTMENT_LABELS[department] : '—';
+}
 
 /** first+last name → username → telegram id → fallback. */
 export function userDisplayName(user: TelegramUser): string {
