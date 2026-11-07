@@ -20,3 +20,7 @@ coverage/
 
 # local scratch data
 .pgdata/
+
+# the frontend monorepo copy ships its build-time env (NO secrets: only
+# VITE_API_URL=/api and empty VITE_WS_URL — same file as in Abrit-front)
+!frontend/.env.production

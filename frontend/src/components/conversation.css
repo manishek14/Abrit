@@ -1,0 +1,114 @@
+/* Message-bubble styles only — the transcript container lives in styles.css
+   (design tokens, responsive height). */
+
+.msg-row {
+  display: flex;
+  width: 100%;
+}
+
+.msg-row--right {
+  justify-content: flex-end;
+}
+
+.msg-row--left {
+  justify-content: flex-start;
+}
+
+.msg-row--system {
+  justify-content: center;
+}
+
+.msg-bubble {
+  max-width: 72%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  word-break: break-word;
+}
+
+/* Support-panel convention (review fix): the OPERATOR's voice (ADMIN) sits
+   on the right; the customer (USER) and the bot (ASSISTANT) sit on the left.
+   Colors: customer = warm incoming amber; bot = neutral white; operator =
+   brand-green — the two voices are unmistakable at a glance. */
+
+.msg-bubble--USER {
+  background: #fff7e6;
+  border-color: #ffd591;
+}
+
+.msg-bubble--ASSISTANT {
+  background: #ffffff;
+  border-color: #d9d9d9;
+}
+
+.msg-bubble--ADMIN {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
+.msg-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.msg-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.msg-tag {
+  margin-inline-end: 0;
+  font-size: 11px;
+  line-height: 16px;
+  padding-inline: 4px;
+}
+
+/* Delivery badges (review fix): Sent is deliberately quiet — it is the
+   happy path; Retrying/Failed carry color so the operator intervenes. */
+.msg-tag--sent {
+  color: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.09);
+}
+
+.msg-tag--muted {
+  color: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Manual retry of a FAILED delivery (review round 5): a quiet inline action
+   that matches the badge scale — visible on failure, invisible otherwise. */
+.msg-retry-btn {
+  font-size: 11px;
+  line-height: 16px;
+  padding-inline: 2px;
+}
+
+.msg-time {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.msg-system-wrap {
+  max-width: 80%;
+  text-align: center;
+}
+
+.msg-system {
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.msg-time--centered {
+  display: block;
+  text-align: center;
+  margin-top: 2px;
+}
